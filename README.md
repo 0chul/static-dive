@@ -1,0 +1,3 @@
+# static-dive
+
+Project initialized.
