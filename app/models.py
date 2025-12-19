@@ -117,3 +117,28 @@ class PartyMemberRead(MemberBase):
 class PartyDetail(PartyRead):
     slots: list[PartySlotRead] = Field(default_factory=list)
     members: list[PartyMemberRead] = Field(default_factory=list)
+
+
+class ChatMessageBase(SQLModel):
+    author_name: str
+    content: str
+
+
+class ChatMessage(ChatMessageBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    party_id: int = Field(foreign_key="party.id")
+    member_id: Optional[int] = Field(default=None, foreign_key="partymember.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ChatMessageCreate(SQLModel):
+    member_id: int
+    content: str
+    author_name: Optional[str] = None
+
+
+class ChatMessageRead(ChatMessageBase):
+    id: int
+    party_id: int
+    member_id: Optional[int]
+    created_at: datetime
