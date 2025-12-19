@@ -101,6 +101,11 @@ docker compose up --build -d
 ```
 - 서비스는 `http://localhost:8000` 으로 노출되며, SQLite 파일은 네임드 볼륨(`party_data`) 아래 `/data/app.db`에 저장됩니다.
 
+## GitHub Pages 배포
+- `main` 브랜치에 푸시되면 `.github/workflows/deploy-pages.yml`이 정적 파일(`app/static`)을 `gh-pages` 환경에 자동 배포합니다.
+- API 엔드포인트가 GitHub Pages 도메인과 다를 경우 `app/static/config.js`에서 `window.STATIC_DIVE_API_BASE` 값을 원하는 API 주소로 설정하세요.
+- 예시: `window.STATIC_DIVE_API_BASE = "https://your-api.example.com";`
+
 ## API 요약
 - **헬스체크**: `GET /health` → `{ "status": "ok" }`
 - **파티 생성**: `POST /parties`

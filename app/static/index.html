@@ -194,7 +194,9 @@
     <div id="party-list" class="grid"></div>
   </main>
 
+  <script src="config.js"></script>
   <script>
+    const API_BASE = (window.STATIC_DIVE_API_BASE || "").replace(/\/+$/, "");
     const partyListEl = document.getElementById("party-list");
     const createForm = document.getElementById("create-party-form");
     const createResult = document.getElementById("create-result");
@@ -207,7 +209,7 @@
     }
 
     async function fetchParties() {
-      const res = await fetch("/parties");
+      const res = await fetch(`${API_BASE}/parties`);
       const data = await res.json();
       renderParties(data);
     }
@@ -330,7 +332,7 @@
         requirements: formData.get("requirements") || null,
       };
 
-      const res = await fetch(`/parties/${partyId}/slots`, {
+      const res = await fetch(`${API_BASE}/parties/${partyId}/slots`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -353,7 +355,7 @@
         invite_code: formData.get("invite_code") || null,
       };
 
-      const res = await fetch(`/parties/${partyId}/apply`, {
+      const res = await fetch(`${API_BASE}/parties/${partyId}/apply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -369,7 +371,7 @@
     }
 
     async function regenerateInvite(partyId) {
-      const res = await fetch(`/parties/${partyId}/invite-code`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/parties/${partyId}/invite-code`, { method: "POST" });
       if (!res.ok) {
         const err = await res.json();
         alert("초대 코드 재발급 실패: " + (err.detail || res.status));
@@ -393,7 +395,7 @@
         invite_code: formData.get("invite_code") || null,
       };
 
-      const res = await fetch("/parties", {
+      const res = await fetch(`${API_BASE}/parties`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
