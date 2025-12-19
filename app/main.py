@@ -20,6 +20,7 @@ from app.models import (
     PartySlotRead,
     PartyVisibility,
 )
+from app.services import calculate_open_slot_count, update_open_slot_count, verify_host_permission
 from app.utils import generate_invite_code
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -86,6 +87,7 @@ def create_party(payload: PartyCreate, session: Session = Depends(get_session)) 
     session.add(party)
     session.commit()
     session.refresh(party)
+    update_open_slot_count(session, party)
     return PartyDetail.from_orm(party).copy(update={"slots": [], "members": []})
 
 
@@ -125,12 +127,22 @@ def read_party(party_id: int, session: Session = Depends(get_session)) -> PartyD
 
 
 @app.post("/parties/{party_id}/slots", response_model=PartySlotRead, status_code=status.HTTP_201_CREATED, tags=["slots"])
-def create_slot(party_id: int, payload: PartySlotCreate, session: Session = Depends(get_session)) -> PartySlotRead:
-    _get_party_or_404(session, party_id)
+def create_slot(
+    party_id: int,
+    payload: PartySlotCreate,
+    session: Session = Depends(get_session),
+    host_id: str = Query(..., description="파티장 인증자 ID"),
+) -> PartySlotRead:
+    party = verify_host_permission(session, party_id, host_id)
+    open_slots = calculate_open_slot_count(session, party)
+    if open_slots is not None and open_slots <= 0:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="파티 정원을 초과할 수 없습니다.")
+
     slot = PartySlot(**payload.dict(), party_id=party_id)
     session.add(slot)
     session.commit()
     session.refresh(slot)
+    update_open_slot_count(session, party)
     return slot
 
 
@@ -172,8 +184,9 @@ def update_member_state(
     member_id: int,
     payload: PartyMemberStateUpdate,
     session: Session = Depends(get_session),
+    host_id: str = Query(..., description="파티장 인증자 ID"),
 ) -> PartyMemberRead:
-    _get_party_or_404(session, party_id)
+    verify_host_permission(session, party_id, host_id)
     member = session.get(PartyMember, member_id)
     if member is None or member.party_id != party_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티원을 찾을 수 없습니다.")

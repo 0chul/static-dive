@@ -28,6 +28,8 @@ class PartyBase(SQLModel):
     visibility: str = Field(default=PartyVisibility.PUBLIC)
     schedule: Optional[str] = None
     capacity: Optional[int] = Field(default=None, ge=1)
+    open_slot_count: Optional[int] = Field(default=None, ge=0)
+    host_id: str
     voice_channel_link: Optional[str] = None
     status: str = Field(default=PartyStatus.OPEN)
     host_name: str
