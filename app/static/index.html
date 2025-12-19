@@ -238,6 +238,10 @@
             <input id="host_name" name="host_name" placeholder="호스트" required />
           </div>
           <div>
+            <label for="host_id">파티장 ID</label>
+            <input id="host_id" name="host_id" placeholder="디스코드/게임 ID" required />
+          </div>
+          <div>
             <label for="visibility">공개 여부</label>
             <select id="visibility" name="visibility">
               <option value="public">공개</option>
@@ -489,6 +493,7 @@
         const payload = {
           title: formData.get("title"),
           host_name: formData.get("host_name"),
+          host_id: formData.get("host_id"),
           visibility: formData.get("visibility"),
           description: formData.get("description") || null,
           capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
