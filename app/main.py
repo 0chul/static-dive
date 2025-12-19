@@ -46,6 +46,14 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/config.js", include_in_schema=False, response_class=FileResponse)
+def serve_config_js() -> Response:
+    config_path = STATIC_DIR / "config.js"
+    if config_path.exists():
+        return FileResponse(config_path, media_type="application/javascript")
+    return JSONResponse({"status": "ok"})
+
+
 def _get_party_or_404(session: Session, party_id: int) -> Party:
     party = session.get(Party, party_id)
     if party is None:
