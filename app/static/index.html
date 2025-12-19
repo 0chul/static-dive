@@ -54,6 +54,15 @@
 
     main { padding: 0 24px 48px; }
 
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 24px 0 12px;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -67,6 +76,14 @@
       padding: 16px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
       backdrop-filter: blur(6px);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      align-items: center;
+      gap: 12px 24px;
+      margin-bottom: 16px;
     }
 
     .card h2, .card h3 { margin: 0 0 8px; }
@@ -152,8 +169,64 @@
   </header>
 
   <main>
-    <section class="card" style="margin-bottom: 16px;">
-      <h2>파티 생성</h2>
+    <section class="card hero">
+      <div>
+        <h2 style="margin: 0 0 6px;">지금 참여할 파티를 먼저 확인하세요</h2>
+        <p class="muted" style="margin: 0;">
+          리스트를 먼저 살펴보고, 초대 코드로 바로 참여하거나 새로운 파티를 만들어 보세요.
+        </p>
+      </div>
+      <div class="row">
+        <button type="button" data-scroll-target="#party-section">파티 리스트 보기</button>
+        <button type="button" class="secondary" data-scroll-target="#private-join">비공개 파티 참여</button>
+        <button type="button" data-scroll-target="#create-section">파티 생성</button>
+      </div>
+    </section>
+
+    <section id="party-section">
+      <div class="section-header">
+        <h2 style="margin: 0;">공개/비공개 파티</h2>
+        <div class="row">
+          <button class="secondary" id="refresh-btn-secondary" type="button">파티 새로고침</button>
+          <button class="secondary" type="button" data-scroll-target="#create-section">파티 만들기</button>
+        </div>
+      </div>
+      <div id="party-list" class="grid"></div>
+    </section>
+
+    <section id="private-join" class="card" style="margin-top: 24px;">
+      <h2>비공개 파티 참여</h2>
+      <p class="muted" style="margin-top: 0;">
+        초대 코드를 받았다면 아래에서 바로 신청할 수 있어요. 파티 ID는 초대 링크나 파티장에게서 확인하세요.
+      </p>
+      <form id="private-join-form" class="inline-form">
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+          <div>
+            <label for="private-party-id">파티 ID</label>
+            <input id="private-party-id" name="party_id" type="number" min="1" placeholder="예) 12" required />
+          </div>
+          <div>
+            <label for="private-slot-id">슬롯 ID (선택)</label>
+            <input id="private-slot-id" name="slot_id" type="number" min="0" placeholder="지정 슬롯이 있다면 입력" />
+          </div>
+          <div>
+            <label for="private-name">신청자 이름</label>
+            <input id="private-name" name="applicant_name" placeholder="내 캐릭터명" required />
+          </div>
+          <div>
+            <label for="private-code">초대 코드</label>
+            <input id="private-code" name="invite_code" placeholder="초대 코드 입력" required />
+          </div>
+        </div>
+        <label for="private-gear">장비 프리셋(JSON)</label>
+        <textarea id="private-gear" name="gear_preset" placeholder='{"role": "힐러", "weapon": {"item": "Great Holy Staff"}}'></textarea>
+        <button type="submit">비공개 파티 신청</button>
+        <div class="muted" id="private-join-result"></div>
+      </form>
+    </section>
+
+    <section id="create-section" class="card" style="margin-top: 24px;">
+      <h2>새 파티 생성</h2>
       <form id="create-party-form" class="inline-form">
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
           <div>
@@ -189,9 +262,6 @@
         <div class="muted" id="create-result"></div>
       </form>
     </section>
-
-    <h2 class="section-title">공개/비공개 파티</h2>
-    <div id="party-list" class="grid"></div>
   </main>
 
   <script src="config.js"></script>
@@ -201,6 +271,9 @@
     const createForm = document.getElementById("create-party-form");
     const createResult = document.getElementById("create-result");
     const refreshBtn = document.getElementById("refresh-btn");
+    const refreshBtnSecondary = document.getElementById("refresh-btn-secondary");
+    const privateJoinForm = document.getElementById("private-join-form");
+    const privateJoinResult = document.getElementById("private-join-result");
 
     function safeParseJSON(value) {
       if (!value || value.trim() === "") return null;
@@ -216,7 +289,7 @@
 
     function renderParties(parties) {
       if (!parties.length) {
-        partyListEl.innerHTML = "<p class='muted'>아직 파티가 없습니다. 위에서 새 파티를 만들어 보세요.</p>";
+        partyListEl.innerHTML = "<p class='muted'>아직 파티가 없습니다. 아래에서 새 파티를 만들거나 초대 코드를 공유해 보세요.</p>";
         return;
       }
 
@@ -347,6 +420,37 @@
       await fetchParties();
     }
 
+    async function applyToPrivateParty(formData) {
+      const partyId = Number(formData.get("party_id"));
+      if (!partyId) {
+        privateJoinResult.textContent = "파티 ID를 입력해 주세요.";
+        return;
+      }
+
+      const payload = {
+        applicant_name: formData.get("applicant_name"),
+        slot_id: formData.get("slot_id") ? Number(formData.get("slot_id")) : null,
+        gear_preset: safeParseJSON(formData.get("gear_preset")),
+        invite_code: formData.get("invite_code") || null,
+      };
+
+      const res = await fetch(`${API_BASE}/parties/${partyId}/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        privateJoinResult.textContent = `신청 실패: ${err.detail || res.status}`;
+        return;
+      }
+
+      privateJoinResult.textContent = `신청이 접수되었습니다. (파티 ${partyId})`;
+      privateJoinForm.reset();
+      await fetchParties();
+    }
+
     async function applyToParty(partyId, formData) {
       const payload = {
         applicant_name: formData.get("applicant_name"),
@@ -414,6 +518,24 @@
     });
 
     refreshBtn.addEventListener("click", fetchParties);
+    refreshBtnSecondary?.addEventListener("click", fetchParties);
+
+    document.querySelectorAll("[data-scroll-target]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.scrollTarget;
+        if (!target) return;
+        const el = document.querySelector(target);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+
+    privateJoinForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      privateJoinResult.textContent = "";
+      const formData = new FormData(privateJoinForm);
+      await applyToPrivateParty(formData);
+    });
+
     fetchParties();
   </script>
 </body>
