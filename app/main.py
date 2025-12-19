@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
@@ -21,6 +22,8 @@ from app.models import (
     PartyVisibility,
 )
 from app.utils import generate_invite_code
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -66,6 +69,11 @@ def _get_slot_or_404(session: Session, party_id: int, slot_id: int) -> PartySlot
     if slot is None or slot.party_id != party_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="해당 파티의 슬롯을 찾을 수 없습니다.")
     return slot
+
+
+def _assert_host_permission(party: Party, host_name: str) -> None:
+    if party.host_name != host_name:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 멤버를 관리할 수 있습니다.")
 
 
 def _count_confirmed_members(session: Session, party_id: int) -> int:
@@ -192,6 +200,34 @@ def update_member_state(
     session.add(member)
     session.commit()
     session.refresh(member)
+    return member
+
+
+@app.delete(
+    "/parties/{party_id}/members/{member_id}",
+    response_model=PartyMemberRead,
+    tags=["members"],
+)
+def remove_member(
+    party_id: int,
+    member_id: int,
+    host_name: str = Query(..., description="파티장 이름 확인"),
+    session: Session = Depends(get_session),
+) -> PartyMemberRead:
+    party = _get_party_or_404(session, party_id)
+    _assert_host_permission(party, host_name)
+
+    member = session.get(PartyMember, member_id)
+    if member is None or member.party_id != party_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티원을 찾을 수 없습니다.")
+
+    member.state = MemberState.KICKED
+    member.slot_id = None
+    session.add(member)
+    session.commit()
+    session.refresh(member)
+
+    logger.info("Member %s was kicked from party %s by host %s", member.id, party_id, host_name)
     return member
 
 

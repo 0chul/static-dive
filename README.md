@@ -118,8 +118,9 @@ docker compose up --build -d
   - 비공개 파티는 `invite_code` 포함
   - `slot_id`, `gear_preset`(프리셋 JSON) 전달 가능
 - **파티원 상태 갱신**: `POST /parties/{party_id}/members/{member_id}/state`
-  - 상태: applied → accepted → locked / rejected
+  - 상태: applied → accepted → locked / rejected / kicked
   - 정원(capacity)이 찼을 때 accepted/locked 전환 시 409 반환
+- **파티원 추방**: `DELETE /parties/{party_id}/members/{member_id}?host_name=파티장` (파티장 이름 확인 후 추방)
 - **초대 코드 재발급**: `POST /parties/{party_id}/invite-code` (비공개 파티 전용)
 
 ### 예시 gear_preset JSON

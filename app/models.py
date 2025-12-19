@@ -20,6 +20,7 @@ class MemberState(str):
     ACCEPTED = "accepted"
     LOCKED = "locked"
     REJECTED = "rejected"
+    KICKED = "kicked"
 
 
 class PartyBase(SQLModel):
@@ -100,7 +101,7 @@ class PartyMemberCreate(SQLModel):
 
 
 class PartyMemberStateUpdate(SQLModel):
-    state: str = Field(regex="^(applied|accepted|locked|rejected)$")
+    state: str = Field(regex="^(applied|accepted|locked|rejected|kicked)$")
     slot_id: Optional[int] = None
 
 
