@@ -112,12 +112,6 @@ def _get_slot_or_404(session: Session, party_id: int, slot_id: int) -> PartySlot
 def _count_confirmed_members(
     session: Session, party_id: int, exclude_member_id: int | None = None
 ) -> int:
-def _assert_host_permission(party: Party, host_name: str) -> None:
-    if party.host_name != host_name:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 멤버를 관리할 수 있습니다.")
-
-
-def _count_confirmed_members(session: Session, party_id: int) -> int:
     statement = select(func.count()).where(
         PartyMember.party_id == party_id,
         PartyMember.state.in_([MemberState.ACCEPTED, MemberState.LOCKED]),
@@ -125,6 +119,11 @@ def _count_confirmed_members(session: Session, party_id: int) -> int:
     if exclude_member_id is not None:
         statement = statement.where(PartyMember.id != exclude_member_id)
     return session.exec(statement).one()
+
+
+def _assert_host_permission(party: Party, host_name: str) -> None:
+    if party.host_name != host_name:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 멤버를 관리할 수 있습니다.")
 
 
 def _count_slot_confirmed_members(
