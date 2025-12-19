@@ -68,12 +68,95 @@ def _get_slot_or_404(session: Session, party_id: int, slot_id: int) -> PartySlot
     return slot
 
 
-def _count_confirmed_members(session: Session, party_id: int) -> int:
+def _count_confirmed_members(
+    session: Session, party_id: int, exclude_member_id: int | None = None
+) -> int:
     statement = select(func.count()).where(
         PartyMember.party_id == party_id,
         PartyMember.state.in_([MemberState.ACCEPTED, MemberState.LOCKED]),
     )
+    if exclude_member_id is not None:
+        statement = statement.where(PartyMember.id != exclude_member_id)
     return session.exec(statement).one()
+
+
+def _count_slot_confirmed_members(
+    session: Session, slot_id: int, exclude_member_id: int | None = None
+) -> int:
+    statement = select(func.count()).where(
+        PartyMember.slot_id == slot_id,
+        PartyMember.state.in_([MemberState.ACCEPTED, MemberState.LOCKED]),
+    )
+    if exclude_member_id is not None:
+        statement = statement.where(PartyMember.id != exclude_member_id)
+    return session.exec(statement).one()
+
+
+def _ensure_capacity_constraints(
+    session: Session,
+    party: Party,
+    target_slot: PartySlot | None,
+    member: PartyMember,
+    target_state: str,
+) -> None:
+    if target_state not in {MemberState.ACCEPTED, MemberState.LOCKED}:
+        return
+
+    confirmed = _count_confirmed_members(
+        session, party.id, exclude_member_id=member.id
+    )
+    if party.capacity and confirmed >= party.capacity:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="파티 정원이 가득 찼습니다.")
+
+    if target_slot:
+        slot_limit = target_slot.ip_target or party.capacity
+        if slot_limit:
+            occupied = _count_slot_confirmed_members(
+                session, target_slot.id, exclude_member_id=member.id
+            )
+            if occupied >= slot_limit:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="해당 슬롯 정원이 가득 찼습니다.")
+
+
+def move_member_to_slot(
+    party_id: int,
+    member_id: int,
+    target_slot_id: int,
+    session: Session,
+    *,
+    commit: bool = True,
+    target_state: str | None = None,
+    party: Party | None = None,
+    member: PartyMember | None = None,
+) -> PartyMember:
+    party = party or _get_party_or_404(session, party_id)
+    member = member or session.get(PartyMember, member_id)
+
+    if member is None or member.party_id != party.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티원을 찾을 수 없습니다.")
+
+    target_slot = _get_slot_or_404(session, party.id, target_slot_id)
+
+    if member.slot_id == target_slot.id:
+        return member
+
+    if member.state in {MemberState.LOCKED, MemberState.REJECTED}:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="현재 상태에서는 슬롯을 이동할 수 없습니다.")
+
+    _ensure_capacity_constraints(
+        session,
+        party,
+        target_slot,
+        member,
+        target_state or member.state,
+    )
+
+    member.slot_id = target_slot.id
+    session.add(member)
+    if commit:
+        session.commit()
+        session.refresh(member)
+    return member
 
 
 @app.post("/parties", response_model=PartyDetail, status_code=status.HTTP_201_CREATED, tags=["parties"])
@@ -173,20 +256,26 @@ def update_member_state(
     payload: PartyMemberStateUpdate,
     session: Session = Depends(get_session),
 ) -> PartyMemberRead:
-    _get_party_or_404(session, party_id)
+    party = _get_party_or_404(session, party_id)
     member = session.get(PartyMember, member_id)
     if member is None or member.party_id != party_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티원을 찾을 수 없습니다.")
 
-    if payload.slot_id:
-        _get_slot_or_404(session, party_id, payload.slot_id)
-        member.slot_id = payload.slot_id
+    target_slot = session.get(PartySlot, member.slot_id) if member.slot_id else None
+    if payload.slot_id is not None and payload.slot_id != member.slot_id:
+        member = move_member_to_slot(
+            party_id,
+            member_id,
+            payload.slot_id,
+            session,
+            commit=False,
+            target_state=payload.state,
+            party=party,
+            member=member,
+        )
+        target_slot = session.get(PartySlot, payload.slot_id)
 
-    if payload.state in {MemberState.ACCEPTED, MemberState.LOCKED} and member.state != payload.state:
-        confirmed = _count_confirmed_members(session, party_id)
-        party = session.get(Party, party_id)
-        if party and party.capacity and confirmed >= party.capacity:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="파티 정원이 가득 찼습니다.")
+    _ensure_capacity_constraints(session, party, target_slot, member, payload.state)
 
     member.state = payload.state
     session.add(member)
