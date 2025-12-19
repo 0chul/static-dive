@@ -1,12 +1,24 @@
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.database import create_db_and_tables, get_session
+from app.database import create_db_and_tables, engine, get_session
 from app.models import (
+    ChatMessage,
+    ChatMessageCreate,
+    ChatMessageRead,
     MemberState,
     Party,
     PartyCreate,
@@ -26,6 +38,31 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(title="Albion Party Planner", version="0.1.0")
+
+
+class PartyWebSocketManager:
+    def __init__(self) -> None:
+        self.active_connections: dict[int, set[WebSocket]] = {}
+
+    async def connect(self, party_id: int, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.active_connections.setdefault(party_id, set()).add(websocket)
+
+    def disconnect(self, party_id: int, websocket: WebSocket) -> None:
+        if party_id in self.active_connections:
+            self.active_connections[party_id].discard(websocket)
+            if not self.active_connections[party_id]:
+                self.active_connections.pop(party_id, None)
+
+    async def broadcast(self, party_id: int, message: dict) -> None:
+        for connection in list(self.active_connections.get(party_id, set())):
+            try:
+                await connection.send_json(message)
+            except RuntimeError:
+                self.disconnect(party_id, connection)
+
+
+manager = PartyWebSocketManager()
 
 
 @app.on_event("startup")
@@ -74,6 +111,45 @@ def _count_confirmed_members(session: Session, party_id: int) -> int:
         PartyMember.state.in_([MemberState.ACCEPTED, MemberState.LOCKED]),
     )
     return session.exec(statement).one()
+
+
+def _require_active_member(session: Session, party_id: int, member_id: int) -> PartyMember:
+    _get_party_or_404(session, party_id)
+    member = session.get(PartyMember, member_id)
+    if member is None or member.party_id != party_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="파티원만 채팅할 수 있습니다.")
+    if member.state == MemberState.REJECTED:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="채팅이 차단된 파티원입니다.")
+    return member
+
+
+def _serialize_chat_message(message: ChatMessage) -> dict:
+    return {
+        "id": message.id,
+        "party_id": message.party_id,
+        "member_id": message.member_id,
+        "author_name": message.author_name,
+        "content": message.content,
+        "created_at": message.created_at.isoformat(),
+    }
+
+
+def _create_chat_message(
+    session: Session, party_id: int, member: PartyMember, content: str, author_name: str | None
+) -> ChatMessage:
+    if not content or not content.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="메시지 내용은 비워둘 수 없습니다.")
+
+    message = ChatMessage(
+        party_id=party_id,
+        member_id=member.id,
+        author_name=author_name or member.applicant_name,
+        content=content.strip(),
+    )
+    session.add(message)
+    session.commit()
+    session.refresh(message)
+    return message
 
 
 @app.post("/parties", response_model=PartyDetail, status_code=status.HTTP_201_CREATED, tags=["parties"])
@@ -218,3 +294,83 @@ def list_slots(party_id: int, session: Session = Depends(get_session)) -> list[P
 def list_members(party_id: int, session: Session = Depends(get_session)) -> list[PartyMemberRead]:
     _get_party_or_404(session, party_id)
     return session.exec(select(PartyMember).where(PartyMember.party_id == party_id)).all()
+
+
+@app.post(
+    "/parties/{party_id}/chat",
+    response_model=ChatMessageRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["chat"],
+)
+async def post_chat_message(
+    party_id: int, payload: ChatMessageCreate, session: Session = Depends(get_session)
+) -> ChatMessage:
+    member = _require_active_member(session, party_id, payload.member_id)
+    message = _create_chat_message(
+        session=session,
+        party_id=party_id,
+        member=member,
+        content=payload.content,
+        author_name=payload.author_name,
+    )
+    await manager.broadcast(party_id, _serialize_chat_message(message))
+    return message
+
+
+@app.get("/parties/{party_id}/chat", response_model=list[ChatMessageRead], tags=["chat"])
+def get_chat_history(
+    party_id: int,
+    member_id: int = Query(..., description="조회 요청을 하는 파티원 ID"),
+    limit: int = Query(50, gt=0, le=200, description="가져올 최대 메시지 수"),
+    session: Session = Depends(get_session),
+) -> list[ChatMessageRead]:
+    _require_active_member(session, party_id, member_id)
+    statement = (
+        select(ChatMessage)
+        .where(ChatMessage.party_id == party_id)
+        .order_by(ChatMessage.created_at.desc())
+        .limit(limit)
+    )
+    messages = session.exec(statement).all()
+    return list(reversed(messages))
+
+
+@app.websocket("/ws/parties/{party_id}")
+async def chat_websocket(websocket: WebSocket, party_id: int) -> None:
+    member_id_param = websocket.query_params.get("member_id")
+    if member_id_param is None:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="member_id is required")
+        return
+
+    try:
+        member_id = int(member_id_param)
+    except ValueError:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="invalid member_id")
+        return
+
+    with Session(engine) as ws_session:
+        try:
+            member = _require_active_member(ws_session, party_id, member_id)
+        except HTTPException as exc:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason=exc.detail)
+            return
+
+    await manager.connect(party_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            with Session(engine) as ws_session:
+                member = _require_active_member(ws_session, party_id, member_id)
+                message = _create_chat_message(
+                    session=ws_session,
+                    party_id=party_id,
+                    member=member,
+                    content=data,
+                    author_name=None,
+                )
+                await manager.broadcast(party_id, _serialize_chat_message(message))
+    except WebSocketDisconnect:
+        manager.disconnect(party_id, websocket)
+    except HTTPException as exc:
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason=exc.detail)
+        manager.disconnect(party_id, websocket)
