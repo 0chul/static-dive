@@ -20,6 +20,7 @@ class MemberState(str):
     ACCEPTED = "accepted"
     LOCKED = "locked"
     REJECTED = "rejected"
+    KICKED = "kicked"
 
 
 class PartyBase(SQLModel):
@@ -28,6 +29,8 @@ class PartyBase(SQLModel):
     visibility: str = Field(default=PartyVisibility.PUBLIC)
     schedule: Optional[str] = None
     capacity: Optional[int] = Field(default=None, ge=1)
+    open_slot_count: Optional[int] = Field(default=None, ge=0)
+    host_id: str
     voice_channel_link: Optional[str] = None
     status: str = Field(default=PartyStatus.OPEN)
     host_name: str
@@ -100,7 +103,7 @@ class PartyMemberCreate(SQLModel):
 
 
 class PartyMemberStateUpdate(SQLModel):
-    state: str = Field(regex="^(applied|accepted|locked|rejected)$")
+    state: str = Field(regex="^(applied|accepted|locked|rejected|kicked)$")
     slot_id: Optional[int] = None
 
 
@@ -114,3 +117,28 @@ class PartyMemberRead(MemberBase):
 class PartyDetail(PartyRead):
     slots: list[PartySlotRead] = Field(default_factory=list)
     members: list[PartyMemberRead] = Field(default_factory=list)
+
+
+class ChatMessageBase(SQLModel):
+    author_name: str
+    content: str
+
+
+class ChatMessage(ChatMessageBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    party_id: int = Field(foreign_key="party.id")
+    member_id: Optional[int] = Field(default=None, foreign_key="partymember.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ChatMessageCreate(SQLModel):
+    member_id: int
+    content: str
+    author_name: Optional[str] = None
+
+
+class ChatMessageRead(ChatMessageBase):
+    id: int
+    party_id: int
+    member_id: Optional[int]
+    created_at: datetime
