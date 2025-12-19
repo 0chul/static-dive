@@ -249,9 +249,6 @@
             <input id="capacity" name="capacity" type="number" min="0" placeholder="5" />
           </div>
         </div>
-        <label for="schedule">시간대 (선택)</label>
-        <input id="schedule" name="schedule" placeholder="예) 오늘 21:00 UTC+9" />
-
         <label for="description">설명</label>
         <textarea id="description" name="description" placeholder="던전/콘텐츠, 역할 요구사항 등을 적어주세요."></textarea>
 
@@ -489,15 +486,14 @@
     createForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const formData = new FormData(createForm);
-      const payload = {
-        title: formData.get("title"),
-        host_name: formData.get("host_name"),
-        visibility: formData.get("visibility"),
-        description: formData.get("description") || null,
-        schedule: formData.get("schedule") || null,
-        capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
-        invite_code: formData.get("invite_code") || null,
-      };
+        const payload = {
+          title: formData.get("title"),
+          host_name: formData.get("host_name"),
+          visibility: formData.get("visibility"),
+          description: formData.get("description") || null,
+          capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
+          invite_code: formData.get("invite_code") || null,
+        };
 
       const res = await fetch(`${API_BASE}/parties`, {
         method: "POST",
