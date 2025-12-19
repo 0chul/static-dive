@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Albion Party Planner</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0d0f16;
+      --card: #141724;
+      --accent: #7fd1ff;
+      --accent-2: #a5ffce;
+      --text: #e9ecf2;
+      --muted: #9aa0b5;
+      --border: #1f2335;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Inter", "Noto Sans KR", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 10% 10%, rgba(127, 209, 255, 0.08), transparent 20%),
+        radial-gradient(circle at 90% 20%, rgba(165, 255, 206, 0.08), transparent 22%),
+        radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.05), transparent 25%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+
+    .pill {
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    main { padding: 0 24px 48px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: rgba(20, 23, 36, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(6px);
+    }
+
+    .card h2, .card h3 { margin: 0 0 8px; }
+
+    label {
+      display: block;
+      margin: 8px 0 4px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    textarea { min-height: 100px; font-family: inherit; }
+
+    button {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      border: none;
+      color: #0b1020;
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      box-shadow: 0 10px 30px rgba(127, 209, 255, 0.25);
+    }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+    }
+
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .muted { color: var(--muted); font-size: 13px; }
+
+    .section-title { margin: 16px 0 8px; font-size: 16px; }
+
+    .list { display: grid; gap: 8px; margin: 8px 0; }
+    .list .item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .inline-form { display: grid; gap: 8px; margin-top: 8px; }
+
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Albion Party Planner</h1>
+      <div class="pill">공개/비공개 파티 구성 · 슬롯/프리셋 공유 · 초대 코드 관리</div>
+    </div>
+    <button class="secondary" id="refresh-btn">파티 새로고침</button>
+  </header>
+
+  <main>
+    <section class="card" style="margin-bottom: 16px;">
+      <h2>파티 생성</h2>
+      <form id="create-party-form" class="inline-form">
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+          <div>
+            <label for="title">제목</label>
+            <input id="title" name="title" placeholder="예) 커럽티드 던전 파티" required />
+          </div>
+          <div>
+            <label for="host_name">파티장 이름</label>
+            <input id="host_name" name="host_name" placeholder="호스트" required />
+          </div>
+          <div>
+            <label for="visibility">공개 여부</label>
+            <select id="visibility" name="visibility">
+              <option value="public">공개</option>
+              <option value="private">비공개 (초대 코드)</option>
+            </select>
+          </div>
+          <div>
+            <label for="capacity">정원 (선택)</label>
+            <input id="capacity" name="capacity" type="number" min="0" placeholder="5" />
+          </div>
+        </div>
+        <label for="schedule">시간대 (선택)</label>
+        <input id="schedule" name="schedule" placeholder="예) 오늘 21:00 UTC+9" />
+
+        <label for="description">설명</label>
+        <textarea id="description" name="description" placeholder="던전/콘텐츠, 역할 요구사항 등을 적어주세요."></textarea>
+
+        <label for="invite_code">(비공개용) 초대 코드 직접 지정</label>
+        <input id="invite_code" name="invite_code" placeholder="비워두면 자동 생성" />
+
+        <button type="submit">파티 만들기</button>
+        <div class="muted" id="create-result"></div>
+      </form>
+    </section>
+
+    <h2 class="section-title">공개/비공개 파티</h2>
+    <div id="party-list" class="grid"></div>
+  </main>
+
+  <script>
+    const partyListEl = document.getElementById("party-list");
+    const createForm = document.getElementById("create-party-form");
+    const createResult = document.getElementById("create-result");
+    const refreshBtn = document.getElementById("refresh-btn");
+
+    function safeParseJSON(value) {
+      if (!value || value.trim() === "") return null;
+      try { return JSON.parse(value); }
+      catch (e) { alert("JSON 형식이 올바르지 않습니다: " + e.message); throw e; }
+    }
+
+    async function fetchParties() {
+      const res = await fetch("/parties");
+      const data = await res.json();
+      renderParties(data);
+    }
+
+    function renderParties(parties) {
+      if (!parties.length) {
+        partyListEl.innerHTML = "<p class='muted'>아직 파티가 없습니다. 위에서 새 파티를 만들어 보세요.</p>";
+        return;
+      }
+
+      partyListEl.innerHTML = "";
+      parties.forEach((party) => {
+        const card = document.createElement("article");
+        card.className = "card";
+
+        const slots = party.slots || [];
+        const members = party.members || [];
+        const confirmed = members.filter((m) => ["accepted", "locked"].includes(m.state)).length;
+
+        card.innerHTML = `
+          <div class="row" style="justify-content: space-between; align-items: center;">
+            <h3>${party.title}</h3>
+            <span class="badge">${party.visibility === "private" ? "비공개 🔒" : "공개"}</span>
+          </div>
+          <p class="muted">파티장: ${party.host_name}${party.schedule ? ` · ${party.schedule}` : ""}</p>
+          <p>${party.description || "설명이 없습니다."}</p>
+          <div class="muted">정원: ${party.capacity ?? "제한 없음"} · 확정 ${confirmed}명</div>
+          ${party.visibility === "private" ? `<div class="muted">초대 코드: <strong>${party.invite_code || "(미발급)"}</strong></div>` : ""}
+          <div class="list" id="slots-${party.id}">
+            <div class="item" style="border-style: dashed;">
+              <strong>슬롯 추가</strong>
+              <form class="inline-form" data-party="${party.id}" data-type="slot">
+                <label>역할</label>
+                <input name="role" placeholder="힐러 / 탱커 / 딜러" required />
+                <label>장비 프리셋(JSON)</label>
+                <textarea name="preset" placeholder='{"weapon": "Great Holy Staff", "armor": {"helmet": "Cleric Cowl"}}'></textarea>
+                <label>추가 요구사항</label>
+                <textarea name="requirements" placeholder="IP 1200 이상, 음식/물약 지정 등"></textarea>
+                <button type="submit">슬롯 만들기</button>
+              </form>
+            </div>
+            ${slots
+              .map(
+                (slot) => `
+                  <div class="item">
+                    <div class="row" style="justify-content: space-between;">
+                      <div><strong>${slot.role}</strong></div>
+                      <div class="muted">#${slot.id}</div>
+                    </div>
+                    <pre style="white-space: pre-wrap; font-size: 12px; color: var(--muted);">${JSON.stringify(slot.preset || {}, null, 2)}</pre>
+                    ${slot.requirements ? `<div class="muted">${slot.requirements}</div>` : ""}
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+          <div class="list" id="members-${party.id}">
+            <div class="item" style="border-style: dashed;">
+              <strong>참여 신청</strong>
+              <form class="inline-form" data-party="${party.id}" data-type="apply">
+                <label>신청자 이름</label>
+                <input name="applicant_name" placeholder="내 캐릭터명" required />
+                <label>슬롯 ID (선택)</label>
+                <input name="slot_id" placeholder="${slots.map((s) => s.id).join(', ')}" />
+                <label>장비 프리셋(JSON)</label>
+                <textarea name="gear_preset" placeholder='{"role": "힐러", "weapon": {"item": "Great Holy Staff"}}'></textarea>
+                ${party.visibility === "private" ? '<label>초대 코드</label><input name="invite_code" placeholder="초대 코드 입력" required />' : ''}
+                <button type="submit">신청하기</button>
+              </form>
+            </div>
+            ${members
+              .map(
+                (member) => `
+                  <div class="item">
+                    <div class="row" style="justify-content: space-between;">
+                      <div><strong>${member.applicant_name}</strong></div>
+                      <div class="badge">${member.state}</div>
+                    </div>
+                    <div class="muted">slot: ${member.slot_id ?? "지정 없음"}</div>
+                    <pre style="white-space: pre-wrap; font-size: 12px; color: var(--muted);">${JSON.stringify(member.gear_preset || {}, null, 2)}</pre>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+          ${party.visibility === "private" ? `<button class="secondary" data-party="${party.id}" data-type="invite">초대 코드 재발급</button>` : ""}
+        `;
+
+        card.addEventListener("submit", async (event) => {
+          const form = event.target;
+          if (!(form instanceof HTMLFormElement)) return;
+          event.preventDefault();
+          const formData = new FormData(form);
+          const type = form.dataset.type;
+          const partyId = form.dataset.party;
+
+          if (type === "slot") {
+            await createSlot(partyId, formData);
+          } else if (type === "apply") {
+            await applyToParty(partyId, formData);
+          }
+        });
+
+        card.addEventListener("click", async (event) => {
+          const target = event.target;
+          if (target instanceof HTMLElement && target.dataset.type === "invite") {
+            const partyId = target.dataset.party;
+            await regenerateInvite(partyId);
+          }
+        });
+
+        partyListEl.appendChild(card);
+      });
+    }
+
+    async function createSlot(partyId, formData) {
+      const payload = {
+        role: formData.get("role"),
+        preset: safeParseJSON(formData.get("preset")),
+        requirements: formData.get("requirements") || null,
+      };
+
+      const res = await fetch(`/parties/${partyId}/slots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert("슬롯 생성 실패: " + (err.detail || res.status));
+        return;
+      }
+
+      await fetchParties();
+    }
+
+    async function applyToParty(partyId, formData) {
+      const payload = {
+        applicant_name: formData.get("applicant_name"),
+        slot_id: formData.get("slot_id") ? Number(formData.get("slot_id")) : null,
+        gear_preset: safeParseJSON(formData.get("gear_preset")),
+        invite_code: formData.get("invite_code") || null,
+      };
+
+      const res = await fetch(`/parties/${partyId}/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert("신청 실패: " + (err.detail || res.status));
+        return;
+      }
+
+      await fetchParties();
+    }
+
+    async function regenerateInvite(partyId) {
+      const res = await fetch(`/parties/${partyId}/invite-code`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        alert("초대 코드 재발급 실패: " + (err.detail || res.status));
+        return;
+      }
+      const data = await res.json();
+      alert(`새 초대 코드: ${data.invite_code}`);
+      await fetchParties();
+    }
+
+    createForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(createForm);
+      const payload = {
+        title: formData.get("title"),
+        host_name: formData.get("host_name"),
+        visibility: formData.get("visibility"),
+        description: formData.get("description") || null,
+        schedule: formData.get("schedule") || null,
+        capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
+        invite_code: formData.get("invite_code") || null,
+      };
+
+      const res = await fetch("/parties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        createResult.textContent = `생성 실패: ${err.detail || res.status}`;
+        return;
+      }
+
+      const data = await res.json();
+      createResult.textContent = `파티 생성 완료 (ID ${data.id})`;
+      createForm.reset();
+      fetchParties();
+    });
+
+    refreshBtn.addEventListener("click", fetchParties);
+    fetchParties();
+  </script>
+</body>
+</html>
