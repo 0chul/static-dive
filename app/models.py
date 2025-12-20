@@ -16,6 +16,7 @@ class PartyStatus(str):
 
 
 class MemberState(str):
+    WAITING = "waiting"
     APPLIED = "applied"
     ACCEPTED = "accepted"
     LOCKED = "locked"
@@ -82,13 +83,16 @@ class PartySlotRead(SlotBase):
 class MemberBase(SQLModel):
     applicant_name: str
     gear_preset: Optional[dict] = Field(default=None, sa_column=Column(JSON))
-    state: str = Field(default=MemberState.APPLIED)
+    state: str = Field(default=MemberState.WAITING)
 
 
 class PartyMember(MemberBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     party_id: int = Field(foreign_key="party.id")
     slot_id: Optional[int] = Field(default=None, foreign_key="partyslot.id")
+    requested_slot_id: Optional[int] = Field(
+        default=None, foreign_key="partyslot.id", description="지원 시 요청한 슬롯"
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     party: Optional[Party] = Relationship(back_populates="members")
@@ -103,7 +107,7 @@ class PartyMemberCreate(SQLModel):
 
 
 class PartyMemberStateUpdate(SQLModel):
-    state: str = Field(regex="^(applied|accepted|locked|rejected|kicked)$")
+    state: str = Field(regex="^(waiting|applied|accepted|locked|rejected|kicked)$")
     slot_id: Optional[int] = None
 
 
@@ -111,6 +115,7 @@ class PartyMemberRead(MemberBase):
     id: int
     party_id: int
     slot_id: Optional[int]
+    requested_slot_id: Optional[int]
     created_at: datetime
 
 

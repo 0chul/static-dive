@@ -367,17 +367,18 @@ def apply_to_party(party_id: int, payload: PartyMemberCreate, session: Session =
             detail="비공개 파티는 /parties/join-by-code 엔드포인트를 통해서만 신청할 수 있습니다.",
         )
 
-    slot_id = payload.slot_id
-    if slot_id is not None:
-        _get_slot_or_404(session, party_id, slot_id)
-
     member = PartyMember(
         party_id=party_id,
-        slot_id=slot_id,
+        slot_id=None,
+        requested_slot_id=payload.slot_id,
         applicant_name=payload.applicant_name,
         gear_preset=payload.gear_preset,
-        state=MemberState.APPLIED,
+        state=MemberState.WAITING,
     )
+
+    if member.requested_slot_id is not None:
+        _get_slot_or_404(session, party_id, member.requested_slot_id)
+
     session.add(member)
     session.commit()
     session.refresh(member)
@@ -403,18 +404,25 @@ def update_member_state(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티원을 찾을 수 없습니다.")
 
     target_slot = session.get(PartySlot, member.slot_id) if member.slot_id else None
-    if payload.slot_id is not None and payload.slot_id != member.slot_id:
-        member = move_member_to_slot(
-            party_id,
-            member_id,
-            payload.slot_id,
-            session,
-            commit=False,
-            target_state=payload.state,
-            party=party,
-            member=member,
-        )
-        target_slot = session.get(PartySlot, payload.slot_id)
+    if payload.slot_id is not None:
+        if member.state != MemberState.WAITING:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="대기 상태에서만 슬롯을 배정할 수 있습니다.",
+            )
+
+        if payload.slot_id != member.slot_id:
+            member = move_member_to_slot(
+                party_id,
+                member_id,
+                payload.slot_id,
+                session,
+                commit=False,
+                target_state=payload.state,
+                party=party,
+                member=member,
+            )
+            target_slot = session.get(PartySlot, payload.slot_id)
 
     _ensure_capacity_constraints(session, party, target_slot, member, payload.state)
 
