@@ -119,6 +119,18 @@ class PartyDetail(PartyRead):
     members: list[PartyMemberRead] = Field(default_factory=list)
 
 
+class PartyJoinByCode(SQLModel):
+    invite_code: str
+    applicant_name: str
+    gear_preset: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    slot_id: Optional[int] = None
+
+
+class PartyJoinResponse(SQLModel):
+    party: PartyDetail
+    member: PartyMemberRead
+
+
 class ChatMessageBase(SQLModel):
     author_name: str
     content: str

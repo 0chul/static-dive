@@ -4,14 +4,14 @@
 
 ## 서비스 개요
 - **목적**: 알비온 온라인 파티 편성 과정을 웹으로 간소화하여 모집, 장비 관리, 참여 흐름을 일원화.
-- **대상 사용자**: 파티장(호스트)과 파티원.
-- **주요 가치**: 공개 파티의 빠른 매칭, 비공개 파티의 초대 코드 기반 관리, 슬롯별 장비 프리셋 공유.
+ - **대상 사용자**: 파티장(호스트)과 파티원.
+ - **주요 가치**: 공개 파티의 빠른 매칭, 비공개 파티의 초대 코드 기반 관리, 슬롯별 장비 프리셋 공유.
 
 ## 핵심 기능
 1. **파티 생성 및 관리**
    - 파티장은 공개/비공개 여부를 설정해 파티 생성.
    - 공개 파티: 공개된 목록에서 검색 및 필터 후 누구나 신청.
-   - 비공개 파티: 파티장이 발급한 초대 코드로만 접근.
+   - 비공개 파티: 파티장이 발급한 초대 코드로만 접근하며, 별도의 코드 기반 입장 흐름으로 신청.
    - 파티 기본 정보: 제목, 설명, 활동 시간, 인원 제한, 음성 채널 안내 등.
 
 2. **파티 목록 및 참여 흐름**
@@ -114,14 +114,17 @@ docker compose up --build -d
 - **파티 목록/검색**: `GET /parties?visibility=public&role=힐러&q=던전`
 - **파티 상세**: `GET /parties/{party_id}`
 - **슬롯 추가/조회**: `POST /parties/{party_id}/slots`, `GET /parties/{party_id}/slots`
-- **파티 신청**: `POST /parties/{party_id}/apply`
-  - 비공개 파티는 `invite_code` 포함
+- **비공개 파티 입장**: `POST /parties/join-by-code`
+  - 입력: `invite_code`, `applicant_name`, 필요시 `slot_id`, `gear_preset`
+  - 코드로 비공개 파티를 조회 후 지원자 레코드를 대기 상태로 생성하고 파티 정보 반환
+- **공개 파티 신청**: `POST /parties/{party_id}/apply`
+  - 공개 파티 전용 신청 엔드포인트
   - `slot_id`, `gear_preset`(프리셋 JSON) 전달 가능
 - **파티원 상태 갱신**: `POST /parties/{party_id}/members/{member_id}/state`
   - 상태: applied → accepted → locked / rejected / kicked
   - 정원(capacity)이 찼을 때 accepted/locked 전환 시 409 반환
 - **파티원 추방**: `DELETE /parties/{party_id}/members/{member_id}?host_name=파티장` (파티장 이름 확인 후 추방)
-- **초대 코드 재발급**: `POST /parties/{party_id}/invite-code` (비공개 파티 전용)
+- **초대 코드 재발급**: `POST /parties/{party_id}/invite-code` (비공개 파티 전용, `join-by-code` 흐름에서 사용)
 
 ### 예시 gear_preset JSON
 ```json
