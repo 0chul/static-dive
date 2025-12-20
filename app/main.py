@@ -28,6 +28,8 @@ from app.models import (
     PartyMemberCreate,
     PartyMemberRead,
     PartyMemberStateUpdate,
+    PartyJoinByCode,
+    PartyJoinResponse,
     PartySlot,
     PartySlotCreate,
     PartySlotRead,
@@ -312,6 +314,46 @@ def create_slot(
 
 
 @app.post(
+    "/parties/join-by-code",
+    response_model=PartyJoinResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["members"],
+)
+def join_party_by_code(payload: PartyJoinByCode, session: Session = Depends(get_session)) -> PartyJoinResponse:
+    party = session.exec(
+        select(Party).where(
+            Party.visibility == PartyVisibility.PRIVATE,
+            Party.invite_code == payload.invite_code,
+        )
+    ).first()
+    if party is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="초대 코드에 해당하는 비공개 파티를 찾을 수 없습니다."
+        )
+
+    slot_id = payload.slot_id
+    if slot_id is not None:
+        _get_slot_or_404(session, party.id, slot_id)
+
+    member = PartyMember(
+        party_id=party.id,
+        slot_id=slot_id,
+        applicant_name=payload.applicant_name,
+        gear_preset=payload.gear_preset,
+        state=MemberState.APPLIED,
+    )
+    session.add(member)
+    session.commit()
+    session.refresh(member)
+
+    slots = session.exec(select(PartySlot).where(PartySlot.party_id == party.id)).all()
+    members = session.exec(select(PartyMember).where(PartyMember.party_id == party.id)).all()
+    party_detail = PartyDetail.from_orm(party).copy(update={"slots": slots, "members": members})
+
+    return PartyJoinResponse(party=party_detail, member=member)
+
+
+@app.post(
     "/parties/{party_id}/apply",
     response_model=PartyMemberRead,
     status_code=status.HTTP_201_CREATED,
@@ -319,8 +361,11 @@ def create_slot(
 )
 def apply_to_party(party_id: int, payload: PartyMemberCreate, session: Session = Depends(get_session)) -> PartyMemberRead:
     party = _get_party_or_404(session, party_id)
-    if party.visibility == PartyVisibility.PRIVATE and party.invite_code != payload.invite_code:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="유효하지 않은 초대 코드입니다.")
+    if party.visibility == PartyVisibility.PRIVATE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="비공개 파티는 /parties/join-by-code 엔드포인트를 통해서만 신청할 수 있습니다.",
+        )
 
     slot_id = payload.slot_id
     if slot_id is not None:
