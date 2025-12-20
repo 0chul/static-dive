@@ -121,6 +121,7 @@ class PartyDetail(PartyRead):
 
 class PartyJoinByCode(SQLModel):
     invite_code: str
+    party_id: Optional[int] = None
     applicant_name: str
     gear_preset: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     slot_id: Optional[int] = None

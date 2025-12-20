@@ -320,16 +320,22 @@ def create_slot(
     tags=["members"],
 )
 def join_party_by_code(payload: PartyJoinByCode, session: Session = Depends(get_session)) -> PartyJoinResponse:
-    party = session.exec(
-        select(Party).where(
-            Party.visibility == PartyVisibility.PRIVATE,
-            Party.invite_code == payload.invite_code,
-        )
-    ).first()
-    if party is None:
+    filters = [Party.visibility == PartyVisibility.PRIVATE, Party.invite_code == payload.invite_code]
+    if payload.party_id is not None:
+        filters.append(Party.id == payload.party_id)
+
+    parties = session.exec(select(Party).where(*filters)).all()
+    if not parties:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="초대 코드에 해당하는 비공개 파티를 찾을 수 없습니다."
         )
+
+    if payload.party_id is None and len(parties) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="동일한 초대 코드의 비공개 파티가 여러 개 존재합니다. party_id를 함께 전송해주세요."
+        )
+
+    party = parties[0]
 
     slot_id = payload.slot_id
     if slot_id is not None:
