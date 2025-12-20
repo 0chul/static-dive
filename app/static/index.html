@@ -78,13 +78,22 @@
       backdrop-filter: blur(6px);
     }
 
-    .hero {
+    .hero-banner {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       align-items: center;
       gap: 12px 24px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
+      background: rgba(20, 23, 36, 0.75);
+      border: 1px dashed var(--border);
     }
+
+    .hero-banner h2 {
+      margin: 0 0 4px;
+      font-size: 18px;
+    }
+
+    .hero-banner .muted { margin: 0; }
 
     .card h2, .card h3 { margin: 0 0 8px; }
 
@@ -209,6 +218,18 @@
   </header>
 
   <main>
+    <section id="party-section" tabindex="-1">
+      <div class="card hero-banner">
+        <div>
+          <h2>지금 참여할 파티를 바로 확인하세요</h2>
+          <p class="muted">
+            리스트를 먼저 살펴보고, 초대 코드로 바로 참여하거나 새로운 파티를 만들어 보세요.
+          </p>
+        </div>
+        <div class="row">
+          <button type="button" data-scroll-target="#create-section">파티 생성</button>
+          <button type="button" class="secondary" data-scroll-target="#private-join">비공개 파티 참여</button>
+        </div>
     <section class="card hero">
       <div>
         <h2 style="margin: 0 0 6px;">지금 참여할 파티를 먼저 확인하세요</h2>
@@ -221,9 +242,7 @@
         <button type="button" class="secondary" data-modal-target="#private-join-modal">비공개 파티 참여</button>
         <button type="button" data-modal-target="#create-modal">파티 생성</button>
       </div>
-    </section>
 
-    <section id="party-section">
       <div class="section-header">
         <h2 style="margin: 0;">공개/비공개 파티</h2>
         <div class="row">
@@ -326,6 +345,7 @@
     const privateJoinForm = document.getElementById("private-join-form");
     const privateJoinResult = document.getElementById("private-join-result");
     const partyEmptyEl = document.getElementById("party-empty");
+    const partySection = document.getElementById("party-section");
     const modals = document.querySelectorAll(".modal");
 
     function openModal(target) {
@@ -633,6 +653,13 @@
       await applyToPrivateParty(formData);
     });
 
+    function focusPartySection() {
+      if (!partySection) return;
+      partySection.focus({ preventScroll: true });
+      partySection.scrollIntoView({ behavior: "auto", block: "start" });
+    }
+
+    focusPartySection();
     fetchParties();
   </script>
 </body>
