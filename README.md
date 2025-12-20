@@ -115,7 +115,7 @@ docker compose up --build -d
 - **파티 상세**: `GET /parties/{party_id}`
 - **슬롯 추가/조회**: `POST /parties/{party_id}/slots`, `GET /parties/{party_id}/slots`
 - **비공개 파티 입장**: `POST /parties/join-by-code`
-  - 입력: `invite_code`, `applicant_name`, 필요시 `slot_id`, `gear_preset`
+  - 입력: `invite_code`, `applicant_name`, 필요시 `slot_id`, `gear_preset`, 코드 중복 시 `party_id`
   - 코드로 비공개 파티를 조회 후 지원자 레코드를 대기 상태로 생성하고 파티 정보 반환
 - **공개 파티 신청**: `POST /parties/{party_id}/apply`
   - 공개 파티 전용 신청 엔드포인트
