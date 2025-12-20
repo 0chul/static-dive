@@ -166,6 +166,46 @@
     @media (max-width: 640px) {
       .grid { grid-template-columns: 1fr; }
     }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 1000;
+    }
+
+    .modal.active { display: flex; }
+
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(2px);
+    }
+
+    .modal-content {
+      position: relative;
+      max-width: 720px;
+      width: 100%;
+      max-height: 90vh;
+      overflow: auto;
+      border-radius: 16px;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -190,20 +230,36 @@
           <button type="button" data-scroll-target="#create-section">파티 생성</button>
           <button type="button" class="secondary" data-scroll-target="#private-join">비공개 파티 참여</button>
         </div>
+    <section class="card hero">
+      <div>
+        <h2 style="margin: 0 0 6px;">지금 참여할 파티를 먼저 확인하세요</h2>
+        <p class="muted" style="margin: 0;">
+          리스트를 먼저 살펴보고, 초대 코드로 바로 참여하거나 새로운 파티를 만들어 보세요.
+        </p>
+      </div>
+      <div class="row">
+        <button type="button" data-scroll-target="#party-section">파티 리스트 보기</button>
+        <button type="button" class="secondary" data-modal-target="#private-join-modal">비공개 파티 참여</button>
+        <button type="button" data-modal-target="#create-modal">파티 생성</button>
       </div>
 
       <div class="section-header">
         <h2 style="margin: 0;">공개/비공개 파티</h2>
         <div class="row">
           <button class="secondary" id="refresh-btn-secondary" type="button">파티 새로고침</button>
-          <button class="secondary" type="button" data-scroll-target="#create-section">파티 만들기</button>
+          <button class="secondary" type="button" data-modal-target="#private-join-modal">비공개 파티 참여</button>
+          <button class="secondary" type="button" data-modal-target="#create-modal">파티 만들기</button>
         </div>
       </div>
       <div id="party-empty" class="muted" style="display: none; margin: 8px 0 0;">생성된 파티가 없음</div>
       <div id="party-list" class="grid"></div>
     </section>
+  </main>
 
-    <section id="private-join" class="card" style="margin-top: 24px;">
+  <div class="modal" id="private-join-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal></div>
+    <section class="card modal-content">
+      <button class="modal-close" type="button" data-close-modal aria-label="닫기">닫기</button>
       <h2>비공개 파티 참여</h2>
       <p class="muted" style="margin-top: 0;">
         초대 코드를 받았다면 아래에서 바로 신청할 수 있어요. 파티 ID는 초대 링크나 파티장에게서 확인하세요.
@@ -233,8 +289,12 @@
         <div class="muted" id="private-join-result"></div>
       </form>
     </section>
+  </div>
 
-    <section id="create-section" class="card" style="margin-top: 24px;">
+  <div class="modal" id="create-modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal></div>
+    <section class="card modal-content">
+      <button class="modal-close" type="button" data-close-modal aria-label="닫기">닫기</button>
       <h2>새 파티 생성</h2>
       <form id="create-party-form" class="inline-form">
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
@@ -272,7 +332,7 @@
         <div class="muted" id="create-result"></div>
       </form>
     </section>
-  </main>
+  </div>
 
   <script src="config.js"></script>
   <script>
@@ -286,6 +346,19 @@
     const privateJoinResult = document.getElementById("private-join-result");
     const partyEmptyEl = document.getElementById("party-empty");
     const partySection = document.getElementById("party-section");
+    const modals = document.querySelectorAll(".modal");
+
+    function openModal(target) {
+      const modal = document.querySelector(target);
+      if (!modal) return;
+      modal.classList.add("active");
+      modal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeModal(modal) {
+      modal.classList.remove("active");
+      modal.setAttribute("aria-hidden", "true");
+    }
 
     function safeParseJSON(value) {
       if (!value || value.trim() === "") return null;
@@ -507,15 +580,15 @@
     createForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const formData = new FormData(createForm);
-        const payload = {
-          title: formData.get("title"),
-          host_name: formData.get("host_name"),
-          host_id: formData.get("host_id"),
-          visibility: formData.get("visibility"),
-          description: formData.get("description") || null,
-          capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
-          invite_code: formData.get("invite_code") || null,
-        };
+      const payload = {
+        title: formData.get("title"),
+        host_name: formData.get("host_name"),
+        host_id: formData.get("host_id"),
+        visibility: formData.get("visibility"),
+        description: formData.get("description") || null,
+        capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
+        invite_code: formData.get("invite_code") || null,
+      };
 
       const res = await fetch(`${API_BASE}/parties`, {
         method: "POST",
@@ -545,6 +618,32 @@
         const el = document.querySelector(target);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });
+    });
+
+    document.querySelectorAll("[data-modal-target]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.modalTarget;
+        if (target) openModal(target);
+      });
+    });
+
+    modals.forEach((modal) => {
+      modal.addEventListener("click", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLElement && target.dataset.closeModal !== undefined) {
+          closeModal(modal);
+        }
+      });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        modals.forEach((modal) => {
+          if (modal.classList.contains("active")) {
+            closeModal(modal);
+          }
+        });
+      }
     });
 
     privateJoinForm?.addEventListener("submit", async (event) => {
