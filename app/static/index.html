@@ -191,6 +191,7 @@
           <button class="secondary" type="button" data-scroll-target="#create-section">파티 만들기</button>
         </div>
       </div>
+      <div id="party-empty" class="muted" style="display: none; margin: 8px 0 0;">생성된 파티가 없음</div>
       <div id="party-list" class="grid"></div>
     </section>
 
@@ -275,6 +276,7 @@
     const refreshBtnSecondary = document.getElementById("refresh-btn-secondary");
     const privateJoinForm = document.getElementById("private-join-form");
     const privateJoinResult = document.getElementById("private-join-result");
+    const partyEmptyEl = document.getElementById("party-empty");
 
     function safeParseJSON(value) {
       if (!value || value.trim() === "") return null;
@@ -289,8 +291,14 @@
     }
 
     function renderParties(parties) {
+      if (partyEmptyEl) partyEmptyEl.style.display = "none";
+
       if (!parties.length) {
-        partyListEl.innerHTML = "<p class='muted'>아직 파티가 없습니다. 아래에서 새 파티를 만들거나 초대 코드를 공유해 보세요.</p>";
+        partyListEl.innerHTML = "";
+        if (partyEmptyEl) {
+          partyEmptyEl.textContent = "생성된 파티가 없음";
+          partyEmptyEl.style.display = "block";
+        }
         return;
       }
 
