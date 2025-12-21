@@ -533,7 +533,7 @@ def create_slot(
 def join_party_by_code(
     payload: PartyJoinByCode,
     session: Session = Depends(get_session),
-    _user: AuthenticatedUser = Depends(require_role("admin", "user", "guest")),
+    _user: AuthenticatedUser = Depends(require_role("user", "guest")),
 ) -> PartyJoinResponse:
     party = session.exec(
         select(Party).where(
@@ -550,11 +550,13 @@ def join_party_by_code(
     if slot_id is not None:
         _get_slot_or_404(session, party.id, slot_id)
 
+    preset = _get_master_preset_or_404(session, payload.gear_preset_id)
+
     member = PartyMember(
         party_id=party.id,
         slot_id=slot_id,
         applicant_name=payload.applicant_name,
-        gear_preset=payload.gear_preset,
+        gear_preset=preset.preset,
         state=MemberState.APPLIED,
     )
     session.add(member)
@@ -578,7 +580,7 @@ def apply_to_party(
     party_id: int,
     payload: PartyMemberCreate,
     session: Session = Depends(get_session),
-    _user: AuthenticatedUser = Depends(require_role("admin", "user", "guest")),
+    _user: AuthenticatedUser = Depends(require_role("user", "guest")),
 ) -> PartyMemberRead:
     party = _get_party_or_404(session, party_id)
     if party.visibility == PartyVisibility.PRIVATE:
@@ -587,12 +589,14 @@ def apply_to_party(
             detail="비공개 파티는 /parties/join-by-code 엔드포인트를 통해서만 신청할 수 있습니다.",
         )
 
+    preset = _get_master_preset_or_404(session, payload.gear_preset_id)
+
     member = PartyMember(
         party_id=party_id,
         slot_id=None,
         requested_slot_id=payload.slot_id,
         applicant_name=payload.applicant_name,
-        gear_preset=payload.gear_preset,
+        gear_preset=preset.preset,
         state=MemberState.WAITING,
     )
 
