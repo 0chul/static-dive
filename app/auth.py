@@ -84,7 +84,7 @@ from passlib.context import CryptContext
 from sqlmodel import Field, Session, SQLModel, select
 
 from app.database import engine, get_session
-from app.models import User, UserCreate, UserRead, UserRole
+from app.models import User, UserCreate, UserRead, UserRegister, UserRole
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
 ALGORITHM = "HS256"
@@ -161,18 +161,42 @@ async def add_user_to_request_state(request: Request, user: User = Depends(get_c
     return user
 
 
+async def resolve_user_from_request(request: Request) -> Optional[User]:
+    request.state.user = None
+    try:
+        token = await oauth2_scheme(request)
+    except HTTPException:
+        return None
+
+    with Session(engine) as session:
+        try:
+            user = get_user_from_token(token, session)
+        except HTTPException:
+            return None
+    request.state.user = user
+    return user
+
+
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def register_user(
-    user_in: UserCreate,
+async def register_user(
+    user_in: UserRegister,
+    request: Request,
     session: Session = Depends(get_session),
     current_user: User | None = Depends(resolve_user_from_request),
 ) -> User:
+    request_payload = await request.json()
+    requested_role = request_payload.get("role")
+    if isinstance(requested_role, str) and requested_role.lower() != UserRole.USER:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role cannot be set during registration",
+        )
+
     existing_user = session.exec(select(User).where(User.username == user_in.username)).first()
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
 
-    is_admin_requester = current_user is not None and current_user.role == UserRole.ADMIN
-    role = user_in.role if is_admin_requester else UserRole.USER
+    role = UserRole.USER
 
     user = User(
         username=user_in.username,
@@ -253,17 +277,3 @@ def login_for_access_token(
     return Token(access_token=access_token, token_type="bearer")
 
 
-async def resolve_user_from_request(request: Request) -> Optional[User]:
-    request.state.user = None
-    try:
-        token = await oauth2_scheme(request)
-    except HTTPException:
-        return None
-
-    with Session(engine) as session:
-        try:
-            user = get_user_from_token(token, session)
-        except HTTPException:
-            return None
-    request.state.user = user
-    return user
