@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import ConfigDict
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, Text
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -94,6 +94,7 @@ class MemberState(str):
 class PartyBase(SQLModel):
     title: str
     description: Optional[str] = None
+    host_tip: Optional[str] = Field(default=None, sa_column=Column(Text))
     visibility: str = Field(default=PartyVisibility.PUBLIC)
     schedule: Optional[str] = None
     capacity: Optional[int] = Field(default=None, ge=1)
