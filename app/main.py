@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 
 from app.auth import (
     AuthenticatedUser,
+    get_current_user,
     require_host_or_admin,
     require_registered_user,
     require_role,
@@ -49,6 +50,7 @@ from app.models import (
     PartySlotRead,
     PartyStatus,
     PartyVisibility,
+    User,
 )
 from app.services import calculate_open_slot_count, update_open_slot_count
 from app.utils import generate_invite_code
@@ -457,7 +459,7 @@ def _create_chat_message(
 def create_party(
     payload: PartyCreate,
     session: Session = Depends(get_session),
-    user: AuthenticatedUser = Depends(require_registered_user),
+    current_user: User = Depends(get_current_user),
 ) -> PartyDetail:
     if not user.user_id:
         raise HTTPException(

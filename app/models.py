@@ -110,6 +110,8 @@ class PartyBase(SQLModel):
 
 class Party(PartyBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    host_id: str
+    host_name: str
     invite_code: Optional[str] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -124,6 +126,8 @@ class PartyCreate(PartyBase):
 
 class PartyRead(PartyBase):
     id: int
+    host_id: str
+    host_name: str
     invite_code: Optional[str]
     created_at: datetime
 

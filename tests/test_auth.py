@@ -15,6 +15,7 @@ from app import database  # noqa: E402
 from app import auth as auth_module  # noqa: E402
 from app.auth import (
     AuthenticatedUser,
+    get_current_user,
     require_authenticated_admin,
     require_registered_user,
     resolve_user_from_request,
@@ -110,8 +111,8 @@ def test_admin_creation_available_only_via_admin_endpoint(client: TestClient) ->
 
 
 def test_private_party_join_does_not_require_gear_preset(client: TestClient) -> None:
-    app.dependency_overrides[require_registered_user] = lambda: AuthenticatedUser(
-        user_id="host-123",
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=123,
         username="host-123",
         role="user",
         party_identifier="host-123#main",
@@ -121,7 +122,6 @@ def test_private_party_join_does_not_require_gear_preset(client: TestClient) -> 
         "/parties",
         json={
             "title": "비공개 파티",
-            "host_identifier": "host-123#main",
             "visibility": "private",
             "description": "테스트 파티",
             "invite_code": "SECRET-INVITE",
