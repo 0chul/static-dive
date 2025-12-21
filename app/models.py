@@ -35,6 +35,28 @@ class GearPresetUpdate(SQLModel):
 class GearPresetRead(GearPresetBase):
     id: int
     created_at: datetime
+class UserRole(str):
+    ADMIN = "admin"
+    USER = "user"
+    GUEST = "guest"
+
+
+class UserBase(SQLModel):
+    username: str = Field(index=True, sa_column_kwargs={"unique": True})
+    role: str = Field(default=UserRole.USER, regex="^(admin|user|guest)$")
+
+
+class User(UserBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    hashed_password: str
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserRead(UserBase):
+    id: int
 
 
 class PartyVisibility(str):
