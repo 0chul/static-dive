@@ -6,6 +6,7 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Query,
+    Request,
     Response,
     WebSocket,
     WebSocketDisconnect,
@@ -15,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.auth import resolve_user_from_request, router as auth_router
 from app.database import create_db_and_tables, engine, get_session
 from app.models import (
     ChatMessage,
@@ -74,6 +76,16 @@ manager = PartyWebSocketManager()
 @app.on_event("startup")
 def on_startup() -> None:
     create_db_and_tables()
+
+
+@app.middleware("http")
+async def attach_current_user(request: Request, call_next):
+    await resolve_user_from_request(request)
+    response = await call_next(request)
+    return response
+
+
+app.include_router(auth_router)
 
 
 @app.get("/", include_in_schema=False, response_class=FileResponse)
