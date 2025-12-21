@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 
 from app.auth import (
     AuthenticatedUser,
+    get_current_user,
     require_host_or_admin,
     require_registered_user,
     require_role,
@@ -49,6 +50,7 @@ from app.models import (
     PartySlotRead,
     PartyStatus,
     PartyVisibility,
+    User,
 )
 from app.services import calculate_open_slot_count, update_open_slot_count
 from app.utils import generate_invite_code
@@ -457,23 +459,18 @@ def _create_chat_message(
 def create_party(
     payload: PartyCreate,
     session: Session = Depends(get_session),
-    user: AuthenticatedUser = Depends(require_registered_user),
+    current_user: User = Depends(get_current_user),
 ) -> PartyDetail:
-    if not user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="로그인이 필요한 작업입니다."
-        )
-
-    if user.role != "admin" and payload.host_id != user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="본인의 계정으로만 파티를 생성할 수 있습니다."
-        )
-
     invite_code = payload.invite_code
     if payload.visibility == PartyVisibility.PRIVATE and not invite_code:
         invite_code = generate_invite_code()
 
-    party = Party(**payload.dict(exclude={"invite_code"}), invite_code=invite_code)
+    party = Party(
+        **payload.dict(exclude={"invite_code"}),
+        host_id=str(current_user.id),
+        host_name=current_user.username,
+        invite_code=invite_code,
+    )
     session.add(party)
     session.commit()
     session.refresh(party)

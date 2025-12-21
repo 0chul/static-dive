@@ -1,8 +1,9 @@
 from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from pydantic import BaseModel
 
 from app.database import get_session
-from app.models import Party
+from app.models import Party, User, UserRole
 from sqlmodel import Session
 
 
@@ -55,24 +56,6 @@ def require_admin(user: AuthenticatedUser = Depends(require_role("admin"))) -> A
     return user
 
 
-def require_host_or_admin(
-    party_id: int,
-    session: Session = Depends(get_session),
-    user: AuthenticatedUser = Depends(get_authenticated_user),
-) -> Party:
-    party = session.get(Party, party_id)
-    if party is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티를 찾을 수 없습니다.")
-
-    if user.is_admin:
-        return party
-
-    if party.host_id != user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 수행할 수 있는 작업입니다."
-        )
-
-    return party
 from datetime import datetime, timedelta
 import os
 from typing import Optional
@@ -175,6 +158,26 @@ async def resolve_user_from_request(request: Request) -> Optional[User]:
             return None
     request.state.user = user
     return user
+
+
+def require_host_or_admin(
+    party_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> Party:
+    party = session.get(Party, party_id)
+    if party is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티를 찾을 수 없습니다.")
+
+    if user.role == UserRole.ADMIN:
+        return party
+
+    if party.host_id != str(user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 수행할 수 있는 작업입니다."
+        )
+
+    return party
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
