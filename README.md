@@ -69,7 +69,7 @@
 ## 기술 메모(초안)
 - **인증/권한**: 호스트/참가자 권한 분리, 초대 코드 기반 접근 제어.
 - **데이터 모델 초안**:
-  - Party: id, host_id, title, description, visibility(public/private), invite_code, schedule, capacity, voice_channel_link, status.
+  - Party: id, host_identifier, title, description, visibility(public/private), invite_code, schedule, capacity, voice_channel_link, status.
   - PartySlot: id, party_id, role, preset, requirements.
   - PartyMember: id, party_id, slot_id, user_id, gear_preset, state(applied/accepted/locked).
   - Notification: id, party_id, type, target, payload.
@@ -109,7 +109,7 @@ docker compose up --build -d
 ## API 요약
 - **헬스체크**: `GET /health` → `{ "status": "ok" }`
 - **파티 생성**: `POST /parties`
-  - 필수: `title`, `host_name`, `visibility`(public/private)
+  - 필수: `title`, `host_identifier`, `visibility`(public/private)
   - 비공개 파티는 초대 코드를 자동 생성하거나 `invite_code`로 직접 설정 가능.
 - **파티 목록/검색**: `GET /parties?visibility=public&role=힐러&q=던전`
 - **파티 상세**: `GET /parties/{party_id}`
@@ -123,7 +123,7 @@ docker compose up --build -d
 - **파티원 상태 갱신**: `POST /parties/{party_id}/members/{member_id}/state`
   - 상태: applied → accepted → locked / rejected / kicked
   - 정원(capacity)이 찼을 때 accepted/locked 전환 시 409 반환
-- **파티원 추방**: `DELETE /parties/{party_id}/members/{member_id}?host_name=파티장` (파티장 이름 확인 후 추방)
+- **파티원 추방**: `DELETE /parties/{party_id}/members/{member_id}` (호스트/관리자 권한 필요)
 - **초대 코드 재발급**: `POST /parties/{party_id}/invite-code` (비공개 파티 전용, `join-by-code` 흐름에서 사용)
 
 ### 예시 gear_preset JSON

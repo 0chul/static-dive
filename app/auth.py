@@ -1,4 +1,4 @@
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi import Depends, Header, HTTPException, status
 from pydantic import BaseModel
 
@@ -11,6 +11,7 @@ class AuthenticatedUser(BaseModel):
     user_id: str | None
     username: str | None
     role: str
+    party_identifier: str | None = None
 
     @property
     def is_admin(self) -> bool:
@@ -18,9 +19,11 @@ class AuthenticatedUser(BaseModel):
 
 
 def get_authenticated_user(
+    request: Request,
     x_user_id: str | None = Header(default=None, convert_underscores=False),
     x_user_name: str | None = Header(default=None, convert_underscores=False),
     x_user_role: str | None = Header(default=None, convert_underscores=False),
+    x_party_identifier: str | None = Header(default=None, convert_underscores=False),
 ) -> AuthenticatedUser:
     """Simple authentication stub reading user info from headers.
 
@@ -28,11 +31,25 @@ def get_authenticated_user(
     coerced to guest.
     """
 
+    resolved_user = getattr(request.state, "user", None)
+    if resolved_user is not None:
+        return AuthenticatedUser(
+            user_id=str(resolved_user.id),
+            username=resolved_user.username,
+            role=resolved_user.role,
+            party_identifier=resolved_user.party_identifier,
+        )
+
     normalized_role = (x_user_role or "guest").lower()
     if normalized_role not in {"admin", "user", "guest"}:
         normalized_role = "guest"
 
-    return AuthenticatedUser(user_id=x_user_id, username=x_user_name, role=normalized_role)
+    return AuthenticatedUser(
+        user_id=x_user_id,
+        username=x_user_name,
+        role=normalized_role,
+        party_identifier=x_party_identifier,
+    )
 
 
 def require_role(*roles: str):
@@ -56,6 +73,24 @@ def require_admin(user: AuthenticatedUser = Depends(require_role("admin"))) -> A
     return user
 
 
+def require_host_or_admin(
+    party_id: int,
+    session: Session = Depends(get_session),
+    user: AuthenticatedUser = Depends(get_authenticated_user),
+) -> Party:
+    party = session.get(Party, party_id)
+    if party is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티를 찾을 수 없습니다.")
+
+    if user.is_admin:
+        return party
+
+    if party.host_identifier != user.party_identifier:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 수행할 수 있는 작업입니다."
+        )
+
+    return party
 from datetime import datetime, timedelta
 import os
 from typing import Optional
@@ -205,6 +240,7 @@ async def register_user(
         username=user_in.username,
         role=role,
         hashed_password=get_password_hash(user_in.password),
+        party_identifier=user_in.party_identifier,
     )
     session.add(user)
     session.commit()
@@ -232,6 +268,7 @@ def create_user_with_role(
         username=user_in.username,
         role=user_in.role,
         hashed_password=get_password_hash(user_in.password),
+        party_identifier=user_in.party_identifier,
     )
     session.add(user)
     session.commit()
@@ -274,7 +311,11 @@ def login_for_access_token(
         )
 
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role},
+        data={
+            "sub": user.username,
+            "role": user.role,
+            "party_identifier": user.party_identifier,
+        },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return Token(access_token=access_token, token_type="bearer")

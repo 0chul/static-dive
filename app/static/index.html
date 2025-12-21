@@ -339,6 +339,14 @@
           <h3 style="margin: 0;">회원가입</h3>
           <label for="register-username">아이디</label>
           <input id="register-username" name="username" autocomplete="username" required />
+          <label for="register-party-identifier">파티 식별자 (이름#ID)</label>
+          <input
+            id="register-party-identifier"
+            name="party_identifier"
+            placeholder="예: AlbionHero#1234"
+            pattern="[^#]+#[^#]+"
+            required
+          />
           <label for="register-password">비밀번호</label>
           <input id="register-password" name="password" type="password" autocomplete="new-password" required />
           <button type="submit">회원가입</button>
@@ -358,6 +366,15 @@
           <div>
             <label for="title">제목</label>
             <input id="title" name="title" placeholder="예) 커럽티드 던전 파티" required />
+          </div>
+          <div>
+            <label for="host-identifier-display">파티장 식별자</label>
+            <input
+              id="host-identifier-display"
+              placeholder="로그인 후 자동 입력"
+              readonly
+              style="opacity: 0.8;"
+            />
           </div>
           <div>
             <label for="visibility">공개 여부</label>
@@ -449,7 +466,13 @@
     function updateAuthUI() {
       const token = getStoredToken();
       const payload = token ? decodeTokenPayload(token) : null;
-      currentUser = payload ? { username: payload.sub || payload.username, role: payload.role || "user" } : null;
+      currentUser = payload
+        ? {
+            username: payload.sub || payload.username,
+            role: payload.role || "user",
+            partyIdentifier: payload.party_identifier,
+          }
+        : null;
 
       if (userDisplay) {
         userDisplay.textContent = currentUser
@@ -464,6 +487,11 @@
 
       if (logoutBtn) {
         logoutBtn.style.display = currentUser ? "inline-flex" : "none";
+      }
+
+      const hostIdentifierDisplay = document.getElementById("host-identifier-display");
+      if (hostIdentifierDisplay) {
+        hostIdentifierDisplay.value = currentUser?.partyIdentifier || "로그인 필요";
       }
 
       const isAdmin = currentUser?.role === "admin";
@@ -523,6 +551,7 @@
       const formData = new FormData(registerForm);
       const payload = {
         username: formData.get("username"),
+        party_identifier: formData.get("party_identifier"),
         password: formData.get("password"),
       };
 
@@ -671,7 +700,7 @@
             <h3>${party.title}</h3>
             <span class="badge">${party.visibility === "private" ? "비공개 🔒" : "공개"}</span>
           </div>
-          <p class="muted">파티장: ${party.host_name}${party.schedule ? ` · ${party.schedule}` : ""}</p>
+          <p class="muted">파티장: ${party.host_identifier}${party.schedule ? ` · ${party.schedule}` : ""}</p>
           <p>${party.description || "설명이 없습니다."}</p>
           ${party.host_tip ? `<div class="item" style="margin: 8px 0;">
             <div class="muted" style="margin: 0 0 4px;">파티장의 팁</div>
@@ -1000,6 +1029,7 @@
       const formData = new FormData(createForm);
       const payload = {
         title: formData.get("title"),
+        host_identifier: currentUser?.partyIdentifier,
         visibility: formData.get("visibility"),
         description: formData.get("description") || null,
         host_tip: formData.get("host_tip") || null,
@@ -1008,6 +1038,10 @@
       };
 
       if (!requireLogin("파티 생성")) return;
+      if (!currentUser?.partyIdentifier) {
+        createResult.textContent = "파티 식별자를 확인할 수 없습니다. 다시 로그인해주세요.";
+        return;
+      }
 
       const res = await authFetch(`${API_BASE}/parties`, {
         method: "POST",
