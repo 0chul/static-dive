@@ -5,6 +5,38 @@ from sqlalchemy import Column, JSON
 from sqlmodel import Field, Relationship, SQLModel
 
 
+class GearPresetVisibility(str):
+    MASTER = "master"
+    PERSONAL = "personal"
+
+
+class GearPresetBase(SQLModel):
+    owner_id: str
+    visibility: str = Field(regex="^(master|personal)$")
+    preset: dict = Field(sa_column=Column(JSON))
+    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+
+
+class GearPreset(GearPresetBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class GearPresetCreate(SQLModel):
+    preset: dict = Field(sa_column=Column(JSON))
+    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+
+
+class GearPresetUpdate(SQLModel):
+    preset: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+
+
+class GearPresetRead(GearPresetBase):
+    id: int
+    created_at: datetime
+
+
 class PartyVisibility(str):
     PUBLIC = "public"
     PRIVATE = "private"
@@ -61,6 +93,7 @@ class SlotBase(SQLModel):
     role: str
     ip_target: Optional[int] = Field(default=None, ge=0)
     preset: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    gear_preset_id: Optional[int] = Field(default=None, foreign_key="gearpreset.id")
 
 
 class PartySlot(SlotBase, table=True):
