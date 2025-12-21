@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 app.db
+test.db
 
 # Ignore generated artifacts
 artifacts/

@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
+from pydantic import ConfigDict
 from sqlalchemy import Column, JSON
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -11,10 +12,15 @@ class GearPresetVisibility(str):
 
 
 class GearPresetBase(SQLModel):
+    model_config = ConfigDict(populate_by_name=True)
     owner_id: str
     visibility: str = Field(regex="^(master|personal)$")
     preset: dict = Field(sa_column=Column(JSON))
-    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    metadata_: Optional[dict] = Field(
+        default=None,
+        sa_column=Column("metadata", JSON),
+        alias="metadata",
+    )
 
 
 class GearPreset(GearPresetBase, table=True):
@@ -23,13 +29,15 @@ class GearPreset(GearPresetBase, table=True):
 
 
 class GearPresetCreate(SQLModel):
-    preset: dict = Field(sa_column=Column(JSON))
-    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    model_config = ConfigDict(populate_by_name=True)
+    preset: dict
+    metadata_: Optional[dict] = Field(default=None, alias="metadata")
 
 
 class GearPresetUpdate(SQLModel):
-    preset: Optional[dict] = Field(default=None, sa_column=Column(JSON))
-    metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    model_config = ConfigDict(populate_by_name=True)
+    preset: Optional[dict] = None
+    metadata_: Optional[dict] = Field(default=None, alias="metadata")
 
 
 class GearPresetRead(GearPresetBase):
@@ -52,6 +60,11 @@ class User(UserBase, table=True):
 
 
 class UserCreate(UserBase):
+    password: str
+
+
+class UserRegister(SQLModel):
+    username: str = Field(index=True)
     password: str
 
 
@@ -123,7 +136,9 @@ class PartySlot(SlotBase, table=True):
     party_id: int = Field(foreign_key="party.id")
 
     party: Optional[Party] = Relationship(back_populates="slots")
-    members: list["PartyMember"] = Relationship(back_populates="slot")
+    members: list["PartyMember"] = Relationship(
+        back_populates="slot", sa_relationship_kwargs={"foreign_keys": "PartyMember.slot_id"}
+    )
 
 
 class PartySlotCreate(SlotBase):
@@ -151,7 +166,10 @@ class PartyMember(MemberBase, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     party: Optional[Party] = Relationship(back_populates="members")
-    slot: Optional[PartySlot] = Relationship(back_populates="members")
+    slot: Optional[PartySlot] = Relationship(
+        back_populates="members",
+        sa_relationship_kwargs={"foreign_keys": "PartyMember.slot_id"},
+    )
 
 
 class PartyMemberCreate(SQLModel):

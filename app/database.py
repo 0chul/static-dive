@@ -50,7 +50,7 @@ def _migrate_slot_presets() -> None:
                 owner_id="system",
                 visibility=GearPresetVisibility.MASTER,
                 preset=slot.preset or {},
-                metadata={"source": "legacy_slot", "party_id": slot.party_id, "slot_id": slot.id},
+                metadata_={"source": "legacy_slot", "party_id": slot.party_id, "slot_id": slot.id},
             )
             session.add(preset)
             session.commit()

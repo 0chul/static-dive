@@ -154,7 +154,7 @@ def create_master_preset(
         owner_id=admin_id,
         visibility=GearPresetVisibility.MASTER,
         preset=payload.preset,
-        metadata=payload.metadata,
+        metadata_=payload.metadata_,
     )
     session.add(preset)
     session.commit()
@@ -230,7 +230,7 @@ def create_personal_preset(
         owner_id=owner_id,
         visibility=GearPresetVisibility.PERSONAL,
         preset=payload.preset,
-        metadata=payload.metadata,
+        metadata_=payload.metadata_,
     )
     session.add(preset)
     session.commit()
