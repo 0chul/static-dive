@@ -565,10 +565,6 @@ def join_party_by_code(
             status_code=status.HTTP_404_NOT_FOUND, detail="초대 코드에 해당하는 비공개 파티를 찾을 수 없습니다."
         )
 
-    slot_id = payload.slot_id
-    if slot_id is not None:
-        _get_slot_or_404(session, party.id, slot_id)
-
     if payload.gear_preset_id is not None:
         preset = _get_master_preset_or_404(session, payload.gear_preset_id)
         gear_preset = preset.preset
@@ -579,15 +575,13 @@ def join_party_by_code(
         )
     else:
         gear_preset = None
-    preset = _get_master_preset_or_404(session, payload.gear_preset_id)
+        preset = None
 
     member = PartyMember(
         party_id=party.id,
-        slot_id=slot_id,
         applicant_name=payload.applicant_name,
         gear_preset=gear_preset,
-        gear_preset=preset.preset,
-        state=MemberState.APPLIED,
+        state=MemberState.WAITING,
     )
     session.add(member)
     session.commit()
@@ -629,7 +623,7 @@ def apply_to_party(
         )
     else:
         gear_preset = None
-    preset = _get_master_preset_or_404(session, payload.gear_preset_id)
+
 
     member = PartyMember(
         party_id=party_id,
@@ -637,7 +631,6 @@ def apply_to_party(
         requested_slot_id=payload.slot_id,
         applicant_name=payload.applicant_name,
         gear_preset=gear_preset,
-        gear_preset=preset.preset,
         state=MemberState.WAITING,
     )
 

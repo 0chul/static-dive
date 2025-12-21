@@ -205,7 +205,6 @@ class PartyJoinByCode(SQLModel):
     gear_preset_id: Optional[int] = None
     gear_preset: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     gear_preset_id: int
-    slot_id: Optional[int] = None
 
 
 class PartyJoinResponse(SQLModel):
