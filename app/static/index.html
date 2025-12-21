@@ -387,6 +387,9 @@
         <label for="description">설명</label>
         <textarea id="description" name="description" placeholder="던전/콘텐츠, 역할 요구사항 등을 적어주세요."></textarea>
 
+        <label for="host_tip">파티장의 팁 (선택)</label>
+        <textarea id="host_tip" name="host_tip" placeholder="파티장으로서 공유하고 싶은 팁이나 공지사항을 적어주세요."></textarea>
+
         <label for="invite_code">(비공개용) 초대 코드 직접 지정</label>
         <input id="invite_code" name="invite_code" placeholder="비워두면 자동 생성" />
 
@@ -697,6 +700,10 @@
           </div>
           <p class="muted">파티장: ${party.host_name}${party.schedule ? ` · ${party.schedule}` : ""}</p>
           <p>${party.description || "설명이 없습니다."}</p>
+          ${party.host_tip ? `<div class="item" style="margin: 8px 0;">
+            <div class="muted" style="margin: 0 0 4px;">파티장의 팁</div>
+            <div style="white-space: pre-wrap;">${party.host_tip}</div>
+          </div>` : ""}
           <div class="muted">정원: ${party.capacity ?? "제한 없음"} · 확정 ${confirmed}명</div>
           ${party.visibility === "private" ? `<div class="muted">초대 코드: <strong>${party.invite_code || "(미발급)"}</strong></div>` : ""}
           <div class="list" id="slots-${party.id}">
@@ -1024,6 +1031,7 @@
         host_id: formData.get("host_id"),
         visibility: formData.get("visibility"),
         description: formData.get("description") || null,
+        host_tip: formData.get("host_tip") || null,
         capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
         invite_code: formData.get("invite_code") || null,
       };
