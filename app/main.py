@@ -47,6 +47,7 @@ from app.models import (
     PartySlot,
     PartySlotCreate,
     PartySlotRead,
+    PartyStatus,
     PartyVisibility,
 )
 from app.services import calculate_open_slot_count, update_open_slot_count
@@ -624,6 +625,8 @@ def apply_to_party(
     else:
         gear_preset = None
 
+    auto_accept = party.status == PartyStatus.OPEN and party.visibility == PartyVisibility.PUBLIC
+    member_state = MemberState.ACCEPTED if auto_accept else MemberState.WAITING
 
     member = PartyMember(
         party_id=party_id,
@@ -631,11 +634,16 @@ def apply_to_party(
         requested_slot_id=payload.slot_id,
         applicant_name=payload.applicant_name,
         gear_preset=gear_preset,
-        state=MemberState.WAITING,
+        state=member_state,
     )
 
+    target_slot = None
     if member.requested_slot_id is not None:
-        _get_slot_or_404(session, party_id, member.requested_slot_id)
+        target_slot = _get_slot_or_404(session, party_id, member.requested_slot_id)
+
+    if member_state in {MemberState.ACCEPTED, MemberState.LOCKED}:
+        _ensure_capacity_constraints(session, party, target_slot, member, member_state)
+        member.slot_id = target_slot.id if target_slot else None
 
     session.add(member)
     session.commit()
