@@ -307,9 +307,6 @@
             <input id="private-code" name="invite_code" placeholder="초대 코드 입력" required />
           </div>
         </div>
-        <label for="private-gear">장비 프리셋</label>
-        <select id="private-gear" name="gear_preset_id"></select>
-        <p class="muted" id="private-gear-helper" style="margin: 4px 0 0;">등록된 마스터 프리셋 중 하나를 선택해주세요.</p>
         <button type="submit">비공개 파티 신청</button>
         <div class="muted" id="private-join-result"></div>
       </form>
@@ -408,8 +405,6 @@
     const refreshBtnSecondary = document.getElementById("refresh-btn-secondary");
     const privateJoinForm = document.getElementById("private-join-form");
     const privateJoinResult = document.getElementById("private-join-result");
-    const privateGearSelect = document.getElementById("private-gear");
-    const privateGearHelper = document.getElementById("private-gear-helper");
     const partyEmptyEl = document.getElementById("party-empty");
     const partySection = document.getElementById("party-section");
     const userDisplay = document.getElementById("user-display");
@@ -642,11 +637,6 @@
       if (!selectEl) return;
       selectEl.innerHTML = renderPresetOptions();
       selectEl.disabled = !masterPresets.length;
-      if (selectEl === privateGearSelect && privateGearHelper) {
-        privateGearHelper.textContent = masterPresets.length
-          ? "등록된 마스터 프리셋 중 하나를 선택해주세요."
-          : "등록된 마스터 프리셋이 없습니다. 관리자에게 문의하세요.";
-      }
     }
 
     async function loadMasterPresets(force = false) {
@@ -655,11 +645,9 @@
       if (!res.ok) {
         console.warn("마스터 프리셋을 불러오지 못했습니다.");
         masterPresets = [];
-        populatePresetSelect(privateGearSelect);
         return masterPresets;
       }
       masterPresets = await res.json();
-      populatePresetSelect(privateGearSelect);
       return masterPresets;
     }
 
@@ -835,9 +823,6 @@
       const payload = {
         applicant_name: formData.get("applicant_name"),
         invite_code: formData.get("invite_code") || null,
-        gear_preset_id: formData.get("gear_preset_id")
-          ? Number(formData.get("gear_preset_id"))
-          : null,
       };
 
       const res = await authFetch(`${API_BASE}/parties/join-by-code`, {

@@ -566,22 +566,9 @@ def join_party_by_code(
             status_code=status.HTTP_404_NOT_FOUND, detail="초대 코드에 해당하는 비공개 파티를 찾을 수 없습니다."
         )
 
-    if payload.gear_preset_id is not None:
-        preset = _get_master_preset_or_404(session, payload.gear_preset_id)
-        gear_preset = preset.preset
-    elif payload.gear_preset is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="장비 프리셋은 마스터 프리셋 ID로만 제출할 수 있습니다.",
-        )
-    else:
-        gear_preset = None
-        preset = None
-
     member = PartyMember(
         party_id=party.id,
         applicant_name=payload.applicant_name,
-        gear_preset=gear_preset,
         state=MemberState.WAITING,
     )
     session.add(member)
