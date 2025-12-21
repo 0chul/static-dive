@@ -738,8 +738,13 @@
               <form class="inline-form" data-party="${party.id}" data-type="apply">
                 <label>신청자 이름</label>
                 <input name="applicant_name" placeholder="내 캐릭터명" required />
-                <label>슬롯 ID (선택)</label>
-                <input name="slot_id" placeholder="${slots.map((s) => s.id).join(', ')}" />
+                ${
+                  party.visibility === "private"
+                    ? ""
+                    : `<label>슬롯 ID (선택)</label><input name="slot_id" placeholder="${slots
+                        .map((s) => s.id)
+                        .join(', ')}" />`
+                }
                 <label>장비 프리셋</label>
                 ${renderPresetSelect("gear_preset_id")}
                 <p class="muted" style="margin: 0;">마스터 프리셋 ID로만 신청할 수 있습니다.</p>
