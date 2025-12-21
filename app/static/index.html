@@ -308,10 +308,8 @@
           </div>
         </div>
         <label for="private-gear">장비 프리셋</label>
-        <select id="private-gear" name="gear_preset_id" required></select>
-        <p class="muted" id="private-gear-helper" style="margin: 4px 0 0;">
-          등록된 마스터 프리셋 중 하나를 선택해주세요.
-        </p>
+        <select id="private-gear" name="gear_preset_id"></select>
+        <p class="muted" id="private-gear-helper" style="margin: 4px 0 0;">등록된 마스터 프리셋 중 하나를 선택해주세요.</p>
         <button type="submit">비공개 파티 신청</button>
         <div class="muted" id="private-join-result"></div>
       </form>
@@ -730,22 +728,25 @@
           </div>
           <div class="list" id="members-${party.id}">
             <div class="item" style="border-style: dashed;">
-              <strong>참여 신청</strong>
-              <form class="inline-form" data-party="${party.id}" data-type="apply">
-                <label>신청자 이름</label>
+              <strong>바로 참여</strong>
+              <form
+                class="inline-form"
+                data-party="${party.id}"
+                data-type="apply"
+                data-visibility="${party.visibility}"
+                data-title="${party.title}"
+              >
+                <label>참여자 이름</label>
                 <input name="applicant_name" placeholder="내 캐릭터명" required />
-                ${
+                <label>장비 프리셋 (선택)</label>
+                ${renderPresetSelect("gear_preset_id", { required: false })}
+                <p class="muted" style="margin: 0;">${
                   party.visibility === "private"
-                    ? ""
-                    : `<label>슬롯 ID (선택)</label><input name="slot_id" placeholder="${slots
-                        .map((s) => s.id)
-                        .join(', ')}" />`
-                }
-                <label>장비 프리셋</label>
-                ${renderPresetSelect("gear_preset_id")}
-                <p class="muted" style="margin: 0;">마스터 프리셋 ID로만 신청할 수 있습니다.</p>
+                    ? "초대 코드와 함께 신청해 주세요."
+                    : "프리셋을 선택하면 바로 합류할 수 있어요."
+                }</p>
                 ${party.visibility === "private" ? '<label>초대 코드</label><input name="invite_code" placeholder="초대 코드 입력" required />' : ''}
-                <button type="submit">신청하기</button>
+                <button type="submit">${party.visibility === "private" ? "신청하기" : "바로 참여하기"}</button>
               </form>
             </div>
             ${members
@@ -777,7 +778,7 @@
           if (type === "slot") {
             await createSlot(partyId, formData);
           } else if (type === "apply") {
-            await applyToParty(partyId, formData);
+            await applyToParty(partyId, formData, form.dataset.visibility, form.dataset.title);
           }
         });
 
@@ -824,16 +825,12 @@
     }
 
     async function applyToPrivateParty(formData) {
-      const gearPresetId = formData.get("gear_preset_id");
-      if (!gearPresetId) {
-        privateJoinResult.textContent = "장비 프리셋을 선택해 주세요.";
-        return;
-      }
-
       const payload = {
         applicant_name: formData.get("applicant_name"),
         invite_code: formData.get("invite_code") || null,
-        gear_preset_id: Number(gearPresetId),
+        gear_preset_id: formData.get("gear_preset_id")
+          ? Number(formData.get("gear_preset_id"))
+          : null,
       };
 
       const res = await authFetch(`${API_BASE}/parties/join-by-code`, {
@@ -856,17 +853,17 @@
       await fetchParties();
     }
 
-    async function applyToParty(partyId, formData) {
-      const gearPresetId = formData.get("gear_preset_id");
-      if (!gearPresetId) {
-        alert("마스터 프리셋을 선택해주세요.");
+    async function applyToParty(partyId, formData, visibility = "public", title = "") {
+      const applicantName = formData.get("applicant_name")?.toString().trim();
+      if (!applicantName) {
+        alert("참여자 이름을 입력해 주세요.");
         return;
       }
 
+      const gearPresetId = formData.get("gear_preset_id");
       const payload = {
-        applicant_name: formData.get("applicant_name"),
-        slot_id: formData.get("slot_id") ? Number(formData.get("slot_id")) : null,
-        gear_preset_id: Number(gearPresetId),
+        applicant_name: applicantName,
+        gear_preset_id: gearPresetId ? Number(gearPresetId) : null,
         invite_code: formData.get("invite_code") || null,
       };
 
@@ -880,6 +877,10 @@
         const err = await res.json();
         alert("신청 실패: " + (err.detail || res.status));
         return;
+      }
+
+      if (visibility === "public") {
+        alert(`${title || "파티"}에 바로 참여되었습니다!`);
       }
 
       await fetchParties();
