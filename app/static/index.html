@@ -289,8 +289,11 @@
             <input id="private-code" name="invite_code" placeholder="초대 코드 입력" required />
           </div>
         </div>
-        <label for="private-gear">장비 프리셋(JSON)</label>
-        <textarea id="private-gear" name="gear_preset" placeholder='{"role": "힐러", "weapon": {"item": "Great Holy Staff"}}'></textarea>
+        <label for="private-gear">장비 프리셋</label>
+        <select id="private-gear" name="gear_preset_id" required></select>
+        <p class="muted" id="private-gear-helper" style="margin: 4px 0 0;">
+          등록된 마스터 프리셋 중 하나를 선택해주세요.
+        </p>
         <button type="submit">비공개 파티 신청</button>
         <div class="muted" id="private-join-result"></div>
       </form>
@@ -386,6 +389,8 @@
     const refreshBtnSecondary = document.getElementById("refresh-btn-secondary");
     const privateJoinForm = document.getElementById("private-join-form");
     const privateJoinResult = document.getElementById("private-join-result");
+    const privateGearSelect = document.getElementById("private-gear");
+    const privateGearHelper = document.getElementById("private-gear-helper");
     const partyEmptyEl = document.getElementById("party-empty");
     const partySection = document.getElementById("party-section");
     const userDisplay = document.getElementById("user-display");
@@ -397,6 +402,7 @@
     const authModal = document.getElementById("auth-modal");
     const modals = document.querySelectorAll(".modal");
     let currentUser = null;
+    let masterPresets = [];
 
     function decodeTokenPayload(token) {
       try {
@@ -539,13 +545,72 @@
       modal.setAttribute("aria-hidden", "true");
     }
 
-    function safeParseJSON(value) {
-      if (!value || value.trim() === "") return null;
-      try { return JSON.parse(value); }
-      catch (e) { alert("JSON 형식이 올바르지 않습니다: " + e.message); throw e; }
+    function formatPresetLabel(preset) {
+      const meta = preset.metadata || {};
+      const name = meta.name || meta.label || meta.title || preset.preset?.name || preset.preset?.role || "프리셋";
+      const roles = meta.roles || meta.allowed_roles || (preset.preset?.role ? [preset.preset.role] : []);
+      const roleText = roles?.length ? ` · ${roles.join(", ")}` : "";
+      return `${name}${roleText} (#${preset.id})`;
+    }
+
+    function renderPresetOptions(includePlaceholder = true) {
+      if (!masterPresets.length) {
+        return '<option value="" disabled selected>마스터 프리셋이 없습니다</option>';
+      }
+
+      const placeholder = includePlaceholder
+        ? '<option value="" disabled selected>마스터 프리셋을 선택하세요</option>'
+        : "";
+
+      return (
+        placeholder +
+        masterPresets
+          .map((preset) => `<option value="${preset.id}">${formatPresetLabel(preset)}</option>`)
+          .join("")
+      );
+    }
+
+    function renderPresetSelect(name, { required = true } = {}) {
+      const hasPresets = masterPresets.length > 0;
+      const options = renderPresetOptions();
+      const requiredAttr = required ? "required" : "";
+      const disabledAttr = hasPresets ? "" : "disabled";
+      return `<select name="${name}" ${requiredAttr} ${disabledAttr}>${options}</select>`;
+    }
+
+    function getPresetLabelById(id) {
+      if (!id) return null;
+      const preset = masterPresets.find((item) => item.id === id);
+      return preset ? formatPresetLabel(preset) : `프리셋 #${id}`;
+    }
+
+    function populatePresetSelect(selectEl) {
+      if (!selectEl) return;
+      selectEl.innerHTML = renderPresetOptions();
+      selectEl.disabled = !masterPresets.length;
+      if (selectEl === privateGearSelect && privateGearHelper) {
+        privateGearHelper.textContent = masterPresets.length
+          ? "등록된 마스터 프리셋 중 하나를 선택해주세요."
+          : "등록된 마스터 프리셋이 없습니다. 관리자에게 문의하세요.";
+      }
+    }
+
+    async function loadMasterPresets(force = false) {
+      if (masterPresets.length && !force) return masterPresets;
+      const res = await authFetch(`${API_BASE}/gear-presets/master`);
+      if (!res.ok) {
+        console.warn("마스터 프리셋을 불러오지 못했습니다.");
+        masterPresets = [];
+        populatePresetSelect(privateGearSelect);
+        return masterPresets;
+      }
+      masterPresets = await res.json();
+      populatePresetSelect(privateGearSelect);
+      return masterPresets;
     }
 
     async function fetchParties() {
+      await loadMasterPresets();
       const res = await authFetch(`${API_BASE}/parties`);
       const data = await res.json();
       renderParties(data);
@@ -587,8 +652,9 @@
               <form class="inline-form" data-party="${party.id}" data-type="slot">
                 <label>역할</label>
                 <input name="role" placeholder="힐러 / 탱커 / 딜러" required />
-                <label>장비 프리셋(JSON)</label>
-                <textarea name="preset" placeholder='{"weapon": "Great Holy Staff", "armor": {"helmet": "Cleric Cowl"}}'></textarea>
+                <label>장비 프리셋</label>
+                ${renderPresetSelect("gear_preset_id")}
+                <p class="muted" style="margin: 0;">등록된 마스터 프리셋만 선택할 수 있습니다.</p>
                 <label>추가 요구사항</label>
                 <textarea name="requirements" placeholder="IP 1200 이상, 음식/물약 지정 등"></textarea>
                 <button type="submit">슬롯 만들기</button>
@@ -602,7 +668,7 @@
                       <div><strong>${slot.role}</strong></div>
                       <div class="muted">#${slot.id}</div>
                     </div>
-                    <pre style="white-space: pre-wrap; font-size: 12px; color: var(--muted);">${JSON.stringify(slot.preset || {}, null, 2)}</pre>
+                    <div class="muted">장비 프리셋: ${slot.gear_preset_id ? getPresetLabelById(slot.gear_preset_id) : "미지정"}</div>
                     ${slot.requirements ? `<div class="muted">${slot.requirements}</div>` : ""}
                   </div>
                 `
@@ -617,8 +683,9 @@
                 <input name="applicant_name" placeholder="내 캐릭터명" required />
                 <label>슬롯 ID (선택)</label>
                 <input name="slot_id" placeholder="${slots.map((s) => s.id).join(', ')}" />
-                <label>장비 프리셋(JSON)</label>
-                <textarea name="gear_preset" placeholder='{"role": "힐러", "weapon": {"item": "Great Holy Staff"}}'></textarea>
+                <label>장비 프리셋</label>
+                ${renderPresetSelect("gear_preset_id")}
+                <p class="muted" style="margin: 0;">마스터 프리셋 ID로만 신청할 수 있습니다.</p>
                 ${party.visibility === "private" ? '<label>초대 코드</label><input name="invite_code" placeholder="초대 코드 입력" required />' : ''}
                 <button type="submit">신청하기</button>
               </form>
@@ -669,9 +736,15 @@
     }
 
     async function createSlot(partyId, formData) {
+      const gearPresetId = formData.get("gear_preset_id");
+      if (!gearPresetId) {
+        alert("마스터 프리셋을 선택해주세요.");
+        return;
+      }
+
       const payload = {
         role: formData.get("role"),
-        preset: safeParseJSON(formData.get("preset")),
+        gear_preset_id: Number(gearPresetId),
         requirements: formData.get("requirements") || null,
       };
 
@@ -699,10 +772,16 @@
         return;
       }
 
+      const gearPresetId = formData.get("gear_preset_id");
+      if (!gearPresetId) {
+        privateJoinResult.textContent = "장비 프리셋을 선택해 주세요.";
+        return;
+      }
+
       const payload = {
         applicant_name: formData.get("applicant_name"),
         slot_id: formData.get("slot_id") ? Number(formData.get("slot_id")) : null,
-        gear_preset: safeParseJSON(formData.get("gear_preset")),
+        gear_preset_id: Number(gearPresetId),
         invite_code: formData.get("invite_code") || null,
       };
 
@@ -724,10 +803,16 @@
     }
 
     async function applyToParty(partyId, formData) {
+      const gearPresetId = formData.get("gear_preset_id");
+      if (!gearPresetId) {
+        alert("마스터 프리셋을 선택해주세요.");
+        return;
+      }
+
       const payload = {
         applicant_name: formData.get("applicant_name"),
         slot_id: formData.get("slot_id") ? Number(formData.get("slot_id")) : null,
-        gear_preset: safeParseJSON(formData.get("gear_preset")),
+        gear_preset_id: Number(gearPresetId),
         invite_code: formData.get("invite_code") || null,
       };
 

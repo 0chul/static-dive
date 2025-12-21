@@ -550,12 +550,23 @@ def join_party_by_code(
     if slot_id is not None:
         _get_slot_or_404(session, party.id, slot_id)
 
+    if payload.gear_preset_id is not None:
+        preset = _get_master_preset_or_404(session, payload.gear_preset_id)
+        gear_preset = preset.preset
+    elif payload.gear_preset is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="장비 프리셋은 마스터 프리셋 ID로만 제출할 수 있습니다.",
+        )
+    else:
+        gear_preset = None
     preset = _get_master_preset_or_404(session, payload.gear_preset_id)
 
     member = PartyMember(
         party_id=party.id,
         slot_id=slot_id,
         applicant_name=payload.applicant_name,
+        gear_preset=gear_preset,
         gear_preset=preset.preset,
         state=MemberState.APPLIED,
     )
@@ -589,6 +600,16 @@ def apply_to_party(
             detail="비공개 파티는 /parties/join-by-code 엔드포인트를 통해서만 신청할 수 있습니다.",
         )
 
+    if payload.gear_preset_id is not None:
+        preset = _get_master_preset_or_404(session, payload.gear_preset_id)
+        gear_preset = preset.preset
+    elif payload.gear_preset is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="장비 프리셋은 마스터 프리셋 ID로만 제출할 수 있습니다.",
+        )
+    else:
+        gear_preset = None
     preset = _get_master_preset_or_404(session, payload.gear_preset_id)
 
     member = PartyMember(
@@ -596,6 +617,7 @@ def apply_to_party(
         slot_id=None,
         requested_slot_id=payload.slot_id,
         applicant_name=payload.applicant_name,
+        gear_preset=gear_preset,
         gear_preset=preset.preset,
         state=MemberState.WAITING,
     )
