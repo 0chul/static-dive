@@ -325,11 +325,6 @@
           <input id="register-username" name="username" autocomplete="username" required />
           <label for="register-password">비밀번호</label>
           <input id="register-password" name="password" type="password" autocomplete="new-password" required />
-          <label for="register-role">역할(선택)</label>
-          <select id="register-role" name="role">
-            <option value="user" selected>사용자</option>
-            <option value="admin">관리자</option>
-          </select>
           <button type="submit">회원가입</button>
           <div class="muted" id="register-result"></div>
         </form>
@@ -504,7 +499,6 @@
       const payload = {
         username: formData.get("username"),
         password: formData.get("password"),
-        role: formData.get("role") || "user",
       };
 
       const res = await fetch(`${API_BASE}/auth/register`, {
