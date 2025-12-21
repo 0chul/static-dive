@@ -294,14 +294,10 @@
       <button class="modal-close" type="button" data-close-modal aria-label="닫기">닫기</button>
       <h2>비공개 파티 참여</h2>
       <p class="muted" style="margin-top: 0;">
-        초대 코드를 받았다면 아래에서 바로 신청할 수 있어요. 파티 ID는 초대 링크나 파티장에게서 확인하세요.
+        초대 코드를 받았다면 아래에서 바로 신청할 수 있어요. 초대 코드만으로 참여할 파티를 확인합니다.
       </p>
       <form id="private-join-form" class="inline-form">
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
-          <div>
-            <label for="private-party-id">파티 ID</label>
-            <input id="private-party-id" name="party_id" type="number" min="1" placeholder="예) 12" required />
-          </div>
           <div>
             <label for="private-name">신청자 이름</label>
             <input id="private-name" name="applicant_name" placeholder="내 캐릭터명" required />
@@ -828,12 +824,6 @@
     }
 
     async function applyToPrivateParty(formData) {
-      const partyId = Number(formData.get("party_id"));
-      if (!partyId) {
-        privateJoinResult.textContent = "파티 ID를 입력해 주세요.";
-        return;
-      }
-
       const gearPresetId = formData.get("gear_preset_id");
       if (!gearPresetId) {
         privateJoinResult.textContent = "장비 프리셋을 선택해 주세요.";
@@ -842,11 +832,11 @@
 
       const payload = {
         applicant_name: formData.get("applicant_name"),
-        gear_preset_id: Number(gearPresetId),
         invite_code: formData.get("invite_code") || null,
+        gear_preset_id: Number(gearPresetId),
       };
 
-      const res = await authFetch(`${API_BASE}/parties/${partyId}/apply`, {
+      const res = await authFetch(`${API_BASE}/parties/join-by-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -854,11 +844,14 @@
 
       if (!res.ok) {
         const err = await res.json();
-        privateJoinResult.textContent = `신청 실패: ${err.detail || res.status}`;
+        privateJoinResult.textContent = `신청 실패: ${err.detail || err.message || res.status}`;
         return;
       }
 
-      privateJoinResult.textContent = `신청이 접수되었습니다. (파티 ${partyId})`;
+      const data = await res.json();
+      const partyTitle = data?.title || "파티";
+      const partyId = data?.id ? ` (#${data.id})` : "";
+      privateJoinResult.textContent = `${partyTitle}${partyId} 신청이 접수되었습니다.`;
       privateJoinForm.reset();
       await fetchParties();
     }
