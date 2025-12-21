@@ -5,6 +5,8 @@ from pydantic import ConfigDict
 from sqlalchemy import Column, JSON, Text
 from sqlmodel import Field, Relationship, SQLModel
 
+PARTY_IDENTIFIER_REGEX = r"^[^#]+#[^#]+$"
+
 
 class GearPresetVisibility(str):
     MASTER = "master"
@@ -52,6 +54,7 @@ class UserRole(str):
 class UserBase(SQLModel):
     username: str = Field(index=True, sa_column_kwargs={"unique": True})
     role: str = Field(default=UserRole.USER, regex="^(admin|user|guest)$")
+    party_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
 
 
 class User(UserBase, table=True):
@@ -66,6 +69,7 @@ class UserCreate(UserBase):
 class UserRegister(SQLModel):
     username: str = Field(index=True)
     password: str
+    party_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
 
 
 class UserRead(UserBase):
@@ -99,10 +103,9 @@ class PartyBase(SQLModel):
     schedule: Optional[str] = None
     capacity: Optional[int] = Field(default=None, ge=1)
     open_slot_count: Optional[int] = Field(default=None, ge=0)
-    host_id: str
+    host_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
     voice_channel_link: Optional[str] = None
     status: str = Field(default=PartyStatus.OPEN)
-    host_name: str
 
 
 class Party(PartyBase, table=True):

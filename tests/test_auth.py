@@ -50,7 +50,8 @@ def test_guest_registration_sets_user_role(client: TestClient) -> None:
     app.dependency_overrides[resolve_user_from_request] = lambda: None
 
     response = client.post(
-        "/auth/register", json={"username": "guest-user", "password": "secret"}
+        "/auth/register",
+        json={"username": "guest-user", "password": "secret", "party_identifier": "GuestUser#1000"},
     )
 
     assert response.status_code == 201
@@ -62,7 +63,12 @@ def test_registration_rejects_admin_role_attempt(client: TestClient) -> None:
 
     response = client.post(
         "/auth/register",
-        json={"username": "no-admins", "password": "secret", "role": UserRole.ADMIN},
+        json={
+            "username": "no-admins",
+            "password": "secret",
+            "role": UserRole.ADMIN,
+            "party_identifier": "NoAdmins#1000",
+        },
     )
 
     assert response.status_code == 400
@@ -73,7 +79,8 @@ def test_admin_caller_still_creates_user_role(client: TestClient) -> None:
     app.dependency_overrides[resolve_user_from_request] = lambda: admin_user
 
     response = client.post(
-        "/auth/register", json={"username": "from-admin", "password": "secret"}
+        "/auth/register",
+        json={"username": "from-admin", "password": "secret", "party_identifier": "Admin#1001"},
     )
 
     assert response.status_code == 201
@@ -90,7 +97,12 @@ def test_admin_creation_available_only_via_admin_endpoint(client: TestClient) ->
 
     response = client.post(
         "/auth/admin/users",
-        json={"username": "new-admin", "password": "secret", "role": UserRole.ADMIN},
+        json={
+            "username": "new-admin",
+            "password": "secret",
+            "role": UserRole.ADMIN,
+            "party_identifier": "NewAdmin#2000",
+        },
     )
 
     assert response.status_code == 201
@@ -102,14 +114,14 @@ def test_private_party_join_does_not_require_gear_preset(client: TestClient) -> 
         user_id="host-123",
         username="host-123",
         role="user",
+        party_identifier="host-123#main",
     )
 
     party_response = client.post(
         "/parties",
         json={
             "title": "비공개 파티",
-            "host_name": "호스트",
-            "host_id": "host-123",
+            "host_identifier": "host-123#main",
             "visibility": "private",
             "description": "테스트 파티",
             "invite_code": "SECRET-INVITE",

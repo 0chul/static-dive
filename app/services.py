@@ -5,11 +5,11 @@ from sqlmodel import Session, select
 from app.models import Party, PartySlot
 
 
-def verify_host_permission(session: Session, party_id: int, host_id: str) -> Party:
+def verify_host_permission(session: Session, party_id: int, host_identifier: str) -> Party:
     party = session.get(Party, party_id)
     if party is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티를 찾을 수 없습니다.")
-    if party.host_id != host_id:
+    if party.host_identifier != host_identifier:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 수정할 수 있습니다.")
     return party
 

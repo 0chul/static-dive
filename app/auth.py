@@ -1,4 +1,4 @@
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.database import get_session
@@ -10,6 +10,7 @@ class AuthenticatedUser(BaseModel):
     user_id: str | None
     username: str | None
     role: str
+    party_identifier: str | None = None
 
     @property
     def is_admin(self) -> bool:
@@ -17,9 +18,11 @@ class AuthenticatedUser(BaseModel):
 
 
 def get_authenticated_user(
+    request: Request,
     x_user_id: str | None = Header(default=None, convert_underscores=False),
     x_user_name: str | None = Header(default=None, convert_underscores=False),
     x_user_role: str | None = Header(default=None, convert_underscores=False),
+    x_party_identifier: str | None = Header(default=None, convert_underscores=False),
 ) -> AuthenticatedUser:
     """Simple authentication stub reading user info from headers.
 
@@ -27,11 +30,25 @@ def get_authenticated_user(
     coerced to guest.
     """
 
+    resolved_user = getattr(request.state, "user", None)
+    if resolved_user is not None:
+        return AuthenticatedUser(
+            user_id=str(resolved_user.id),
+            username=resolved_user.username,
+            role=resolved_user.role,
+            party_identifier=resolved_user.party_identifier,
+        )
+
     normalized_role = (x_user_role or "guest").lower()
     if normalized_role not in {"admin", "user", "guest"}:
         normalized_role = "guest"
 
-    return AuthenticatedUser(user_id=x_user_id, username=x_user_name, role=normalized_role)
+    return AuthenticatedUser(
+        user_id=x_user_id,
+        username=x_user_name,
+        role=normalized_role,
+        party_identifier=x_party_identifier,
+    )
 
 
 def require_role(*roles: str):
@@ -67,7 +84,7 @@ def require_host_or_admin(
     if user.is_admin:
         return party
 
-    if party.host_id != user.user_id:
+    if party.host_identifier != user.party_identifier:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 수행할 수 있는 작업입니다."
         )
@@ -202,6 +219,7 @@ async def register_user(
         username=user_in.username,
         role=role,
         hashed_password=get_password_hash(user_in.password),
+        party_identifier=user_in.party_identifier,
     )
     session.add(user)
     session.commit()
@@ -229,6 +247,7 @@ def create_user_with_role(
         username=user_in.username,
         role=user_in.role,
         hashed_password=get_password_hash(user_in.password),
+        party_identifier=user_in.party_identifier,
     )
     session.add(user)
     session.commit()
@@ -271,7 +290,11 @@ def login_for_access_token(
         )
 
     access_token = create_access_token(
-        data={"sub": user.username, "role": user.role},
+        data={
+            "sub": user.username,
+            "role": user.role,
+            "party_identifier": user.party_identifier,
+        },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return Token(access_token=access_token, token_type="bearer")
