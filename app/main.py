@@ -15,6 +15,12 @@ from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.auth import (
+    AuthenticatedUser,
+    require_host_or_admin,
+    require_registered_user,
+    require_role,
+)
 from app.database import create_db_and_tables, engine, get_session
 from app.models import (
     ChatMessage,
@@ -35,7 +41,7 @@ from app.models import (
     PartySlotRead,
     PartyVisibility,
 )
-from app.services import calculate_open_slot_count, update_open_slot_count, verify_host_permission
+from app.services import calculate_open_slot_count, update_open_slot_count
 from app.utils import generate_invite_code
 
 logger = logging.getLogger(__name__)
@@ -121,11 +127,6 @@ def _count_confirmed_members(
     if exclude_member_id is not None:
         statement = statement.where(PartyMember.id != exclude_member_id)
     return session.exec(statement).one()
-
-
-def _assert_host_permission(party: Party, host_name: str) -> None:
-    if party.host_name != host_name:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 멤버를 관리할 수 있습니다.")
 
 
 def _count_slot_confirmed_members(
@@ -245,7 +246,21 @@ def _create_chat_message(
 
 
 @app.post("/parties", response_model=PartyDetail, status_code=status.HTTP_201_CREATED, tags=["parties"])
-def create_party(payload: PartyCreate, session: Session = Depends(get_session)) -> PartyDetail:
+def create_party(
+    payload: PartyCreate,
+    session: Session = Depends(get_session),
+    user: AuthenticatedUser = Depends(require_registered_user),
+) -> PartyDetail:
+    if not user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="로그인이 필요한 작업입니다."
+        )
+
+    if user.role != "admin" and payload.host_id != user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="본인의 계정으로만 파티를 생성할 수 있습니다."
+        )
+
     invite_code = payload.invite_code
     if payload.visibility == PartyVisibility.PRIVATE and not invite_code:
         invite_code = generate_invite_code()
@@ -298,9 +313,9 @@ def create_slot(
     party_id: int,
     payload: PartySlotCreate,
     session: Session = Depends(get_session),
-    host_id: str = Query(..., description="파티장 인증자 ID"),
+    _: Party = Depends(require_host_or_admin),
 ) -> PartySlotRead:
-    party = verify_host_permission(session, party_id, host_id)
+    party = _get_party_or_404(session, party_id)
     open_slots = calculate_open_slot_count(session, party)
     if open_slots is not None and open_slots <= 0:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="파티 정원을 초과할 수 없습니다.")
@@ -319,7 +334,11 @@ def create_slot(
     status_code=status.HTTP_201_CREATED,
     tags=["members"],
 )
-def join_party_by_code(payload: PartyJoinByCode, session: Session = Depends(get_session)) -> PartyJoinResponse:
+def join_party_by_code(
+    payload: PartyJoinByCode,
+    session: Session = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_role("admin", "user", "guest")),
+) -> PartyJoinResponse:
     party = session.exec(
         select(Party).where(
             Party.visibility == PartyVisibility.PRIVATE,
@@ -359,7 +378,12 @@ def join_party_by_code(payload: PartyJoinByCode, session: Session = Depends(get_
     status_code=status.HTTP_201_CREATED,
     tags=["members"],
 )
-def apply_to_party(party_id: int, payload: PartyMemberCreate, session: Session = Depends(get_session)) -> PartyMemberRead:
+def apply_to_party(
+    party_id: int,
+    payload: PartyMemberCreate,
+    session: Session = Depends(get_session),
+    _user: AuthenticatedUser = Depends(require_role("admin", "user", "guest")),
+) -> PartyMemberRead:
     party = _get_party_or_404(session, party_id)
     if party.visibility == PartyVisibility.PRIVATE:
         raise HTTPException(
@@ -395,10 +419,9 @@ def update_member_state(
     member_id: int,
     payload: PartyMemberStateUpdate,
     session: Session = Depends(get_session),
-    host_id: str = Query(..., description="파티장 인증자 ID"),
+    _: Party = Depends(require_host_or_admin),
 ) -> PartyMemberRead:
     party = _get_party_or_404(session, party_id)
-    verify_host_permission(session, party_id, host_id)
     member = session.get(PartyMember, member_id)
     if member is None or member.party_id != party_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티원을 찾을 수 없습니다.")
@@ -441,11 +464,10 @@ def update_member_state(
 def remove_member(
     party_id: int,
     member_id: int,
-    host_name: str = Query(..., description="파티장 이름 확인"),
     session: Session = Depends(get_session),
+    _: Party = Depends(require_host_or_admin),
 ) -> PartyMemberRead:
     party = _get_party_or_404(session, party_id)
-    _assert_host_permission(party, host_name)
 
     member = session.get(PartyMember, member_id)
     if member is None or member.party_id != party_id:
@@ -457,12 +479,16 @@ def remove_member(
     session.commit()
     session.refresh(member)
 
-    logger.info("Member %s was kicked from party %s by host %s", member.id, party_id, host_name)
+    logger.info("Member %s was kicked from party %s", member.id, party_id)
     return member
 
 
 @app.post("/parties/{party_id}/invite-code", response_model=dict, tags=["parties"])
-def regenerate_invite_code(party_id: int, session: Session = Depends(get_session)) -> dict:
+def regenerate_invite_code(
+    party_id: int,
+    session: Session = Depends(get_session),
+    _: Party = Depends(require_host_or_admin),
+) -> dict:
     party = _get_party_or_404(session, party_id)
     if party.visibility != PartyVisibility.PRIVATE:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="공개 파티는 초대 코드가 필요 없습니다.")
