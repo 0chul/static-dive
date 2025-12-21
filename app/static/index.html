@@ -303,10 +303,6 @@
             <input id="private-party-id" name="party_id" type="number" min="1" placeholder="예) 12" required />
           </div>
           <div>
-            <label for="private-slot-id">슬롯 ID (선택)</label>
-            <input id="private-slot-id" name="slot_id" type="number" min="0" placeholder="지정 슬롯이 있다면 입력" />
-          </div>
-          <div>
             <label for="private-name">신청자 이름</label>
             <input id="private-name" name="applicant_name" placeholder="내 캐릭터명" required />
           </div>
@@ -841,7 +837,6 @@
 
       const payload = {
         applicant_name: formData.get("applicant_name"),
-        slot_id: formData.get("slot_id") ? Number(formData.get("slot_id")) : null,
         gear_preset_id: Number(gearPresetId),
         invite_code: formData.get("invite_code") || null,
       };
