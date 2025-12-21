@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from fastapi import (
@@ -6,6 +7,7 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Query,
+    Request,
     Response,
     WebSocket,
     WebSocketDisconnect,
@@ -21,11 +23,17 @@ from app.auth import (
     require_registered_user,
     require_role,
 )
+from app.auth import resolve_user_from_request, router as auth_router
 from app.database import create_db_and_tables, engine, get_session
 from app.models import (
     ChatMessage,
     ChatMessageCreate,
     ChatMessageRead,
+    GearPreset,
+    GearPresetCreate,
+    GearPresetRead,
+    GearPresetUpdate,
+    GearPresetVisibility,
     MemberState,
     Party,
     PartyCreate,
@@ -50,6 +58,13 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(title="Albion Party Planner", version="0.1.0")
+
+ADMIN_IDS = {admin.strip() for admin in os.getenv("ADMIN_IDS", "admin").split(",") if admin.strip()}
+
+
+def _require_admin(admin_id: str) -> None:
+    if admin_id not in ADMIN_IDS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="관리자만 사용할 수 있는 기능입니다.")
 
 
 class PartyWebSocketManager:
@@ -82,6 +97,16 @@ def on_startup() -> None:
     create_db_and_tables()
 
 
+@app.middleware("http")
+async def attach_current_user(request: Request, call_next):
+    await resolve_user_from_request(request)
+    response = await call_next(request)
+    return response
+
+
+app.include_router(auth_router)
+
+
 @app.get("/", include_in_schema=False, response_class=FileResponse)
 def serve_index() -> Response:
     index_path = STATIC_DIR / "index.html"
@@ -103,6 +128,155 @@ def serve_config_js() -> Response:
     return JSONResponse({"status": "ok"})
 
 
+@app.get("/gear-presets/master", response_model=list[GearPresetRead], tags=["gear-presets"])
+def list_master_presets(session: Session = Depends(get_session)) -> list[GearPresetRead]:
+    statement = (
+        select(GearPreset)
+        .where(GearPreset.visibility == GearPresetVisibility.MASTER)
+        .order_by(GearPreset.created_at.desc())
+    )
+    return session.exec(statement).all()
+
+
+@app.post(
+    "/gear-presets/master",
+    response_model=GearPresetRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["gear-presets"],
+)
+def create_master_preset(
+    payload: GearPresetCreate,
+    admin_id: str = Query(..., description="관리자 인증"),
+    session: Session = Depends(get_session),
+) -> GearPresetRead:
+    _require_admin(admin_id)
+    preset = GearPreset(
+        owner_id=admin_id,
+        visibility=GearPresetVisibility.MASTER,
+        preset=payload.preset,
+        metadata=payload.metadata,
+    )
+    session.add(preset)
+    session.commit()
+    session.refresh(preset)
+    return preset
+
+
+@app.patch("/gear-presets/master/{preset_id}", response_model=GearPresetRead, tags=["gear-presets"])
+def update_master_preset(
+    preset_id: int,
+    payload: GearPresetUpdate,
+    admin_id: str = Query(..., description="관리자 인증"),
+    session: Session = Depends(get_session),
+) -> GearPresetRead:
+    _require_admin(admin_id)
+    preset = _get_master_preset_or_404(session, preset_id)
+
+    update_data = payload.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(preset, field, value)
+
+    session.add(preset)
+    session.commit()
+    session.refresh(preset)
+    return preset
+
+
+@app.delete("/gear-presets/master/{preset_id}", response_model=GearPresetRead, tags=["gear-presets"])
+def delete_master_preset(
+    preset_id: int,
+    admin_id: str = Query(..., description="관리자 인증"),
+    session: Session = Depends(get_session),
+) -> GearPresetRead:
+    _require_admin(admin_id)
+    preset = _get_master_preset_or_404(session, preset_id)
+    session.delete(preset)
+    session.commit()
+    return preset
+
+
+@app.get(
+    "/gear-presets/me",
+    response_model=list[GearPresetRead],
+    tags=["gear-presets"],
+)
+def list_personal_presets(
+    owner_id: str = Query(..., description="프리셋 소유자"),
+    session: Session = Depends(get_session),
+) -> list[GearPresetRead]:
+    statement = (
+        select(GearPreset)
+        .where(
+            GearPreset.visibility == GearPresetVisibility.PERSONAL,
+            GearPreset.owner_id == owner_id,
+        )
+        .order_by(GearPreset.created_at.desc())
+    )
+    return session.exec(statement).all()
+
+
+@app.post(
+    "/gear-presets/me",
+    response_model=GearPresetRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["gear-presets"],
+)
+def create_personal_preset(
+    payload: GearPresetCreate,
+    owner_id: str = Query(..., description="프리셋 소유자"),
+    session: Session = Depends(get_session),
+) -> GearPresetRead:
+    preset = GearPreset(
+        owner_id=owner_id,
+        visibility=GearPresetVisibility.PERSONAL,
+        preset=payload.preset,
+        metadata=payload.metadata,
+    )
+    session.add(preset)
+    session.commit()
+    session.refresh(preset)
+    return preset
+
+
+@app.get("/gear-presets/me/{preset_id}", response_model=GearPresetRead, tags=["gear-presets"])
+def get_personal_preset(
+    preset_id: int,
+    owner_id: str = Query(..., description="프리셋 소유자"),
+    session: Session = Depends(get_session),
+) -> GearPresetRead:
+    return _get_personal_preset_or_404(session, owner_id, preset_id)
+
+
+@app.patch("/gear-presets/me/{preset_id}", response_model=GearPresetRead, tags=["gear-presets"])
+def update_personal_preset(
+    preset_id: int,
+    payload: GearPresetUpdate,
+    owner_id: str = Query(..., description="프리셋 소유자"),
+    session: Session = Depends(get_session),
+) -> GearPresetRead:
+    preset = _get_personal_preset_or_404(session, owner_id, preset_id)
+    update_data = payload.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(preset, field, value)
+
+    session.add(preset)
+    session.commit()
+    session.refresh(preset)
+    return preset
+
+
+@app.delete("/gear-presets/me/{preset_id}", response_model=GearPresetRead, tags=["gear-presets"])
+def delete_personal_preset(
+    preset_id: int,
+    owner_id: str = Query(..., description="프리셋 소유자"),
+    session: Session = Depends(get_session),
+) -> GearPresetRead:
+    preset = _get_personal_preset_or_404(session, owner_id, preset_id)
+    session.delete(preset)
+    session.commit()
+    return preset
+
+
 def _get_party_or_404(session: Session, party_id: int) -> Party:
     party = session.get(Party, party_id)
     if party is None:
@@ -115,6 +289,20 @@ def _get_slot_or_404(session: Session, party_id: int, slot_id: int) -> PartySlot
     if slot is None or slot.party_id != party_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="해당 파티의 슬롯을 찾을 수 없습니다.")
     return slot
+
+
+def _get_master_preset_or_404(session: Session, preset_id: int) -> GearPreset:
+    preset = session.get(GearPreset, preset_id)
+    if preset is None or preset.visibility != GearPresetVisibility.MASTER:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="마스터 프리셋을 찾을 수 없습니다.")
+    return preset
+
+
+def _get_personal_preset_or_404(session: Session, owner_id: str, preset_id: int) -> GearPreset:
+    preset = session.get(GearPreset, preset_id)
+    if preset is None or preset.owner_id != owner_id or preset.visibility != GearPresetVisibility.PERSONAL:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="개인 프리셋을 찾을 수 없습니다.")
+    return preset
 
 
 def _count_confirmed_members(
@@ -319,6 +507,14 @@ def create_slot(
     open_slots = calculate_open_slot_count(session, party)
     if open_slots is not None and open_slots <= 0:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="파티 정원을 초과할 수 없습니다.")
+
+    if payload.gear_preset_id is not None:
+        _get_master_preset_or_404(session, payload.gear_preset_id)
+    elif payload.preset is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="슬롯 프리셋은 등록된 마스터 프리셋 ID로 지정해야 합니다.",
+        )
 
     slot = PartySlot(**payload.dict(), party_id=party_id)
     session.add(slot)
