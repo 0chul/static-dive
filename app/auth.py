@@ -81,10 +81,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlmodel import Session, SQLModel, select
+from sqlmodel import Field, Session, SQLModel, select
 
 from app.database import engine, get_session
-from app.models import User, UserCreate, UserRead
+from app.models import User, UserCreate, UserRead, UserRole
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
 ALGORITHM = "HS256"
@@ -162,7 +162,41 @@ async def add_user_to_request_state(request: Request, user: User = Depends(get_c
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def register_user(user_in: UserCreate, session: Session = Depends(get_session)) -> User:
+def register_user(
+    user_in: UserCreate,
+    session: Session = Depends(get_session),
+    current_user: User | None = Depends(resolve_user_from_request),
+) -> User:
+    existing_user = session.exec(select(User).where(User.username == user_in.username)).first()
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+
+    is_admin_requester = current_user is not None and current_user.role == UserRole.ADMIN
+    role = user_in.role if is_admin_requester else UserRole.USER
+
+    user = User(
+        username=user_in.username,
+        role=role,
+        hashed_password=get_password_hash(user_in.password),
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def require_authenticated_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="관리자 권한이 필요합니다")
+    return current_user
+
+
+@router.post("/admin/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+def create_user_with_role(
+    user_in: UserCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_authenticated_admin),
+) -> User:
     existing_user = session.exec(select(User).where(User.username == user_in.username)).first()
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
@@ -172,6 +206,28 @@ def register_user(user_in: UserCreate, session: Session = Depends(get_session)) 
         role=user_in.role,
         hashed_password=get_password_hash(user_in.password),
     )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+class UserRoleUpdate(SQLModel):
+    role: str = Field(regex="^(admin|user|guest)$")
+
+
+@router.patch("/admin/users/{username}/role", response_model=UserRead)
+def update_user_role(
+    username: str,
+    role_update: UserRoleUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_authenticated_admin),
+) -> User:
+    user = session.exec(select(User).where(User.username == username)).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.role = role_update.role
     session.add(user)
     session.commit()
     session.refresh(user)
