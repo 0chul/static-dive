@@ -201,9 +201,11 @@ def delete_master_preset(
     tags=["gear-presets"],
 )
 def list_personal_presets(
-    owner_id: str = Query(..., description="프리셋 소유자"),
+    request: Request,
     session: Session = Depends(get_session),
+    user: AuthenticatedUser = Depends(require_registered_user),
 ) -> list[GearPresetRead]:
+    owner_id = _get_current_owner_id(request, user)
     statement = (
         select(GearPreset)
         .where(
@@ -223,9 +225,11 @@ def list_personal_presets(
 )
 def create_personal_preset(
     payload: GearPresetCreate,
-    owner_id: str = Query(..., description="프리셋 소유자"),
+    request: Request,
     session: Session = Depends(get_session),
+    user: AuthenticatedUser = Depends(require_registered_user),
 ) -> GearPresetRead:
+    owner_id = _get_current_owner_id(request, user)
     preset = GearPreset(
         owner_id=owner_id,
         visibility=GearPresetVisibility.PERSONAL,
@@ -241,9 +245,11 @@ def create_personal_preset(
 @app.get("/gear-presets/me/{preset_id}", response_model=GearPresetRead, tags=["gear-presets"])
 def get_personal_preset(
     preset_id: int,
-    owner_id: str = Query(..., description="프리셋 소유자"),
+    request: Request,
     session: Session = Depends(get_session),
+    user: AuthenticatedUser = Depends(require_registered_user),
 ) -> GearPresetRead:
+    owner_id = _get_current_owner_id(request, user)
     return _get_personal_preset_or_404(session, owner_id, preset_id)
 
 
@@ -251,9 +257,11 @@ def get_personal_preset(
 def update_personal_preset(
     preset_id: int,
     payload: GearPresetUpdate,
-    owner_id: str = Query(..., description="프리셋 소유자"),
+    request: Request,
     session: Session = Depends(get_session),
+    user: AuthenticatedUser = Depends(require_registered_user),
 ) -> GearPresetRead:
+    owner_id = _get_current_owner_id(request, user)
     preset = _get_personal_preset_or_404(session, owner_id, preset_id)
     update_data = payload.dict(exclude_unset=True)
     for field, value in update_data.items():
@@ -268,9 +276,11 @@ def update_personal_preset(
 @app.delete("/gear-presets/me/{preset_id}", response_model=GearPresetRead, tags=["gear-presets"])
 def delete_personal_preset(
     preset_id: int,
-    owner_id: str = Query(..., description="프리셋 소유자"),
+    request: Request,
     session: Session = Depends(get_session),
+    user: AuthenticatedUser = Depends(require_registered_user),
 ) -> GearPresetRead:
+    owner_id = _get_current_owner_id(request, user)
     preset = _get_personal_preset_or_404(session, owner_id, preset_id)
     session.delete(preset)
     session.commit()
@@ -303,6 +313,15 @@ def _get_personal_preset_or_404(session: Session, owner_id: str, preset_id: int)
     if preset is None or preset.owner_id != owner_id or preset.visibility != GearPresetVisibility.PERSONAL:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="개인 프리셋을 찾을 수 없습니다.")
     return preset
+
+
+def _get_current_owner_id(request: Request, user: AuthenticatedUser) -> str:
+    state_user = getattr(request, "state", None)
+    if state_user and getattr(state_user, "user", None) is not None:
+        return str(state_user.user.id)
+    if user.user_id:
+        return user.user_id
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="로그인이 필요한 작업입니다.")
 
 
 def _count_confirmed_members(
