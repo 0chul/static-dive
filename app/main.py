@@ -533,7 +533,7 @@ def create_slot(
 def join_party_by_code(
     payload: PartyJoinByCode,
     session: Session = Depends(get_session),
-    _user: AuthenticatedUser = Depends(require_role("admin", "user", "guest")),
+    _user: AuthenticatedUser = Depends(require_role("user", "guest")),
 ) -> PartyJoinResponse:
     party = session.exec(
         select(Party).where(
@@ -560,12 +560,14 @@ def join_party_by_code(
         )
     else:
         gear_preset = None
+    preset = _get_master_preset_or_404(session, payload.gear_preset_id)
 
     member = PartyMember(
         party_id=party.id,
         slot_id=slot_id,
         applicant_name=payload.applicant_name,
         gear_preset=gear_preset,
+        gear_preset=preset.preset,
         state=MemberState.APPLIED,
     )
     session.add(member)
@@ -589,7 +591,7 @@ def apply_to_party(
     party_id: int,
     payload: PartyMemberCreate,
     session: Session = Depends(get_session),
-    _user: AuthenticatedUser = Depends(require_role("admin", "user", "guest")),
+    _user: AuthenticatedUser = Depends(require_role("user", "guest")),
 ) -> PartyMemberRead:
     party = _get_party_or_404(session, party_id)
     if party.visibility == PartyVisibility.PRIVATE:
@@ -608,6 +610,7 @@ def apply_to_party(
         )
     else:
         gear_preset = None
+    preset = _get_master_preset_or_404(session, payload.gear_preset_id)
 
     member = PartyMember(
         party_id=party_id,
@@ -615,6 +618,7 @@ def apply_to_party(
         requested_slot_id=payload.slot_id,
         applicant_name=payload.applicant_name,
         gear_preset=gear_preset,
+        gear_preset=preset.preset,
         state=MemberState.WAITING,
     )
 

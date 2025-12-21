@@ -176,6 +176,7 @@ class PartyMemberCreate(SQLModel):
     applicant_name: str
     gear_preset_id: Optional[int] = None
     gear_preset: Optional[dict] = None
+    gear_preset_id: int
     slot_id: Optional[int] = None
     invite_code: Optional[str] = None
 
@@ -203,6 +204,7 @@ class PartyJoinByCode(SQLModel):
     applicant_name: str
     gear_preset_id: Optional[int] = None
     gear_preset: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    gear_preset_id: int
     slot_id: Optional[int] = None
 
 
