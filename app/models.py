@@ -99,14 +99,14 @@ class PartyBase(SQLModel):
     schedule: Optional[str] = None
     capacity: Optional[int] = Field(default=None, ge=1)
     open_slot_count: Optional[int] = Field(default=None, ge=0)
-    host_id: str
     voice_channel_link: Optional[str] = None
     status: str = Field(default=PartyStatus.OPEN)
-    host_name: str
 
 
 class Party(PartyBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    host_id: str
+    host_name: str
     invite_code: Optional[str] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -121,6 +121,8 @@ class PartyCreate(PartyBase):
 
 class PartyRead(PartyBase):
     id: int
+    host_id: str
+    host_name: str
     invite_code: Optional[str]
     created_at: datetime
 
