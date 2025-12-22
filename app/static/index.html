@@ -349,6 +349,14 @@
           />
           <label for="register-password">비밀번호</label>
           <input id="register-password" name="password" type="password" autocomplete="new-password" required />
+          <label for="register-password-confirm">비밀번호 확인</label>
+          <input
+            id="register-password-confirm"
+            name="confirm_password"
+            type="password"
+            autocomplete="new-password"
+            required
+          />
           <button type="submit">회원가입</button>
           <div class="muted" id="register-result"></div>
         </form>
@@ -549,10 +557,18 @@
       event.preventDefault();
       registerResult.textContent = "";
       const formData = new FormData(registerForm);
+      const password = formData.get("password");
+      const confirmPassword = formData.get("confirm_password");
+
+      if (password !== confirmPassword) {
+        registerResult.textContent = "비밀번호와 확인 비밀번호가 일치하지 않습니다.";
+        return;
+      }
       const payload = {
         username: formData.get("username"),
         party_identifier: formData.get("party_identifier"),
-        password: formData.get("password"),
+        password,
+        confirm_password: confirmPassword,
       };
 
       const res = await fetch(`${API_BASE}/auth/register`, {
