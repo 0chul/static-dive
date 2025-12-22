@@ -1,16 +1,23 @@
-from fastapi import Depends, Header, HTTPException, Request, status
-from pydantic import BaseModel
+from datetime import datetime, timedelta
+import os
+from typing import Optional
 
-from app.database import get_session
-from app.models import Party, User, UserRole
-from sqlmodel import Session
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from pydantic import BaseModel
+from sqlmodel import Field, Session, SQLModel, select
+
+from app.database import engine, get_session
+from app.models import Party, User, UserCreate, UserRead, UserRegister, UserRole
 
 
 class AuthenticatedUser(BaseModel):
     user_id: str | None
     username: str | None
     role: str
-    party_identifier: str | None = None
+    game_id: str | None = None
 
     @property
     def is_admin(self) -> bool:
@@ -22,7 +29,7 @@ def get_authenticated_user(
     x_user_id: str | None = Header(default=None, convert_underscores=False),
     x_user_name: str | None = Header(default=None, convert_underscores=False),
     x_user_role: str | None = Header(default=None, convert_underscores=False),
-    x_party_identifier: str | None = Header(default=None, convert_underscores=False),
+    x_game_id: str | None = Header(default=None, convert_underscores=False),
 ) -> AuthenticatedUser:
     """Simple authentication stub reading user info from headers.
 
@@ -36,7 +43,7 @@ def get_authenticated_user(
             user_id=str(resolved_user.id),
             username=resolved_user.username,
             role=resolved_user.role,
-            party_identifier=resolved_user.party_identifier,
+            game_id=resolved_user.game_id,
         )
 
     normalized_role = (x_user_role or "guest").lower()
@@ -47,7 +54,7 @@ def get_authenticated_user(
         user_id=x_user_id,
         username=x_user_name,
         role=normalized_role,
-        party_identifier=x_party_identifier,
+        game_id=x_game_id,
     )
 
 
@@ -70,39 +77,6 @@ def require_registered_user(
 
 def require_admin(user: AuthenticatedUser = Depends(require_role("admin"))) -> AuthenticatedUser:
     return user
-
-
-def require_host_or_admin(
-    party_id: int,
-    session: Session = Depends(get_session),
-    user: AuthenticatedUser = Depends(get_authenticated_user),
-) -> Party:
-    party = session.get(Party, party_id)
-    if party is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티를 찾을 수 없습니다.")
-
-    if user.is_admin:
-        return party
-
-    if party.host_identifier != user.party_identifier:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 수행할 수 있는 작업입니다."
-        )
-
-    return party
-from datetime import datetime, timedelta
-import os
-import random
-from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from sqlmodel import Field, Session, SQLModel, select
-
-from app.database import engine, get_session
-from app.models import User, UserCreate, UserRead, UserRegister, UserRole
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
 ALGORITHM = "HS256"
@@ -266,13 +240,17 @@ async def register_user(
             },
         )
 
+    existing_game_id = session.exec(select(User).where(User.game_id == user_in.game_id)).first()
+    if existing_game_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game ID already registered")
+
     role = UserRole.USER
 
     user = User(
         username=user_in.username,
         role=role,
         hashed_password=get_password_hash(user_in.password),
-        party_identifier=user_in.party_identifier,
+        game_id=user_in.game_id,
     )
     session.add(user)
     session.commit()
@@ -300,7 +278,7 @@ def create_user_with_role(
         username=user_in.username,
         role=user_in.role,
         hashed_password=get_password_hash(user_in.password),
-        party_identifier=user_in.party_identifier,
+        game_id=user_in.game_id,
     )
     session.add(user)
     session.commit()
@@ -346,7 +324,7 @@ def login_for_access_token(
         data={
             "sub": user.username,
             "role": user.role,
-            "party_identifier": user.party_identifier,
+            "game_id": user.game_id,
         },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )

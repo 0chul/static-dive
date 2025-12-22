@@ -339,12 +339,12 @@
           <h3 style="margin: 0;">회원가입</h3>
           <label for="register-username">아이디</label>
           <input id="register-username" name="username" autocomplete="username" required />
-          <label for="register-party-identifier">파티 식별자 (이름#ID)</label>
+          <label for="register-game-id">게임 ID</label>
           <input
-            id="register-party-identifier"
-            name="party_identifier"
-            placeholder="예: AlbionHero#1234"
-            pattern="[^#]+#[^#]+"
+            id="register-game-id"
+            name="game_id"
+            placeholder="예: AlbionHero_1234"
+            pattern="^[A-Za-z0-9_-]{3,16}$"
             required
           />
           <label for="register-password">비밀번호</label>
@@ -478,7 +478,7 @@
         ? {
             username: payload.sub || payload.username,
             role: payload.role || "user",
-            partyIdentifier: payload.party_identifier,
+            gameId: payload.game_id,
           }
         : null;
 
@@ -499,7 +499,7 @@
 
       const hostIdentifierDisplay = document.getElementById("host-identifier-display");
       if (hostIdentifierDisplay) {
-        hostIdentifierDisplay.value = currentUser?.partyIdentifier || "로그인 필요";
+        hostIdentifierDisplay.value = currentUser?.gameId || "로그인 필요";
       }
 
       const isAdmin = currentUser?.role === "admin";
@@ -566,9 +566,8 @@
       }
       const payload = {
         username: formData.get("username"),
-        party_identifier: formData.get("party_identifier"),
-        password,
-        confirm_password: confirmPassword,
+        game_id: formData.get("game_id"),
+        password: formData.get("password"),
       };
 
       const res = await fetch(`${API_BASE}/auth/register`, {
@@ -1080,7 +1079,7 @@
       const formData = new FormData(createForm);
       const payload = {
         title: formData.get("title"),
-        host_identifier: currentUser?.partyIdentifier,
+        host_identifier: currentUser?.gameId,
         visibility: formData.get("visibility"),
         description: formData.get("description") || null,
         host_tip: formData.get("host_tip") || null,
@@ -1089,7 +1088,7 @@
       };
 
       if (!requireLogin("파티 생성")) return;
-      if (!currentUser?.partyIdentifier) {
+      if (!currentUser?.gameId) {
         createResult.textContent = "파티 식별자를 확인할 수 없습니다. 다시 로그인해주세요.";
         return;
       }

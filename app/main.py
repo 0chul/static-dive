@@ -466,15 +466,15 @@ def create_party(
             status_code=status.HTTP_403_FORBIDDEN, detail="로그인이 필요한 작업입니다."
         )
 
-    if not current_user.party_identifier:
+    if not current_user.game_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="회원 프로필에 파티 식별자가 없습니다. 다시 로그인하거나 정보를 확인해주세요.",
         )
 
-    host_identifier = payload.host_identifier or current_user.party_identifier
+    host_identifier = payload.host_identifier or current_user.game_id
 
-    if current_user.role != "admin" and host_identifier != current_user.party_identifier:
+    if current_user.role != "admin" and host_identifier != current_user.game_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="본인의 계정으로만 파티를 생성할 수 있습니다."
         )

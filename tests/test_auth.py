@@ -53,7 +53,7 @@ def test_guest_registration_sets_user_role(client: TestClient) -> None:
 
     response = client.post(
         "/auth/register",
-        json={"username": "guest-user", "password": "secret", "party_identifier": "GuestUser#1000"},
+        json={"username": "guest-user", "password": "secret", "game_id": "GuestUser1000"},
     )
 
     assert response.status_code == 201
@@ -114,7 +114,7 @@ def test_registration_rejects_admin_role_attempt(client: TestClient) -> None:
             "username": "no-admins",
             "password": "secret",
             "role": UserRole.ADMIN,
-            "party_identifier": "NoAdmins#1000",
+            "game_id": "NoAdmins1000",
         },
     )
 
@@ -122,12 +122,14 @@ def test_registration_rejects_admin_role_attempt(client: TestClient) -> None:
 
 
 def test_admin_caller_still_creates_user_role(client: TestClient) -> None:
-    admin_user = User(username="admin", role=UserRole.ADMIN, hashed_password="hashed")
+    admin_user = User(
+        username="admin", role=UserRole.ADMIN, hashed_password="hashed", game_id="AdminHost"
+    )
     app.dependency_overrides[resolve_user_from_request] = lambda: admin_user
 
     response = client.post(
         "/auth/register",
-        json={"username": "from-admin", "password": "secret", "party_identifier": "Admin#1001"},
+        json={"username": "from-admin", "password": "secret", "game_id": "Admin1001"},
     )
 
     assert response.status_code == 201
@@ -139,6 +141,7 @@ def test_admin_creation_available_only_via_admin_endpoint(client: TestClient) ->
         username="admin",
         role=UserRole.ADMIN,
         hashed_password="not-used",
+        game_id="AdminHost",
     )
     app.dependency_overrides[require_authenticated_admin] = lambda: admin_user
 
@@ -148,7 +151,7 @@ def test_admin_creation_available_only_via_admin_endpoint(client: TestClient) ->
             "username": "new-admin",
             "password": "secret",
             "role": UserRole.ADMIN,
-            "party_identifier": "NewAdmin#2000",
+            "game_id": "NewAdmin2000",
         },
     )
 
@@ -161,7 +164,7 @@ def test_private_party_join_does_not_require_gear_preset(client: TestClient) -> 
         id=123,
         username="host-123",
         role="user",
-        party_identifier="host-123#main",
+        game_id="host123main",
     )
 
     party_response = client.post(
