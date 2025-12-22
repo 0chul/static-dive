@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -57,6 +58,51 @@ def test_guest_registration_sets_user_role(client: TestClient) -> None:
 
     assert response.status_code == 201
     assert response.json()["role"] == UserRole.USER
+
+
+def test_registration_rejects_duplicate_username(client: TestClient) -> None:
+    app.dependency_overrides[resolve_user_from_request] = lambda: None
+
+    first_response = client.post(
+        "/auth/register",
+        json={"username": "duplicate-user", "password": "secret", "party_identifier": "DupUser#1000"},
+    )
+
+    assert first_response.status_code == 201
+
+    second_response = client.post(
+        "/auth/register",
+        json={"username": "duplicate-user", "password": "secret", "party_identifier": "DupUser#2000"},
+    )
+
+    assert second_response.status_code == 400
+    detail = second_response.json().get("detail", {})
+    assert detail.get("field") == "username"
+    assert "아이디" in detail.get("message", "")
+
+
+def test_registration_suggests_new_party_identifier(client: TestClient) -> None:
+    app.dependency_overrides[resolve_user_from_request] = lambda: None
+
+    first_response = client.post(
+        "/auth/register",
+        json={"username": "party-owner", "password": "secret", "party_identifier": "PartyOwner#3000"},
+    )
+
+    assert first_response.status_code == 201
+
+    second_response = client.post(
+        "/auth/register",
+        json={"username": "party-owner-2", "password": "secret", "party_identifier": "PartyOwner#3000"},
+    )
+
+    assert second_response.status_code == 400
+    detail = second_response.json().get("detail", {})
+    assert detail.get("field") == "party_identifier"
+    suggested = detail.get("suggested_party_identifier")
+    assert suggested is not None
+    assert suggested.startswith("PartyOwner#")
+    assert re.match(r"^PartyOwner#\d{4}$", suggested)
 
 
 def test_registration_rejects_admin_role_attempt(client: TestClient) -> None:

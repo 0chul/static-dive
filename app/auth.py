@@ -98,6 +98,12 @@ class TokenData(SQLModel):
     role: Optional[str] = None
 
 
+def generate_party_identifier_suggestion(identifier: str) -> str:
+    base = (identifier or "player").split("#", 1)[0] or "player"
+    random_tag = f"{random.randint(0, 9999):04d}"
+    return f"{base}#{random_tag}"
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -204,9 +210,35 @@ async def register_user(
             detail="Role cannot be set during registration",
         )
 
+    if user_in.password != user_in.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="비밀번호와 확인 비밀번호가 일치하지 않습니다.",
+        )
+
     existing_user = session.exec(select(User).where(User.username == user_in.username)).first()
     if existing_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "이미 사용 중인 사용자명입니다. 다른 아이디를 입력해주세요.",
+                "field": "username",
+            },
+        )
+
+    existing_identifier = session.exec(
+        select(User).where(User.party_identifier == user_in.party_identifier)
+    ).first()
+    if existing_identifier:
+        suggestion = generate_party_identifier_suggestion(user_in.party_identifier)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "이미 사용 중인 게임 ID입니다. 제안된 ID를 확인해주세요.",
+                "field": "party_identifier",
+                "suggested_party_identifier": suggestion,
+            },
+        )
 
     existing_game_id = session.exec(select(User).where(User.game_id == user_in.game_id)).first()
     if existing_game_id:
