@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import os
+import random
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -226,11 +227,9 @@ async def register_user(
             },
         )
 
-    existing_identifier = session.exec(
-        select(User).where(User.party_identifier == user_in.party_identifier)
-    ).first()
+    existing_identifier = session.exec(select(User).where(User.game_id == user_in.game_id)).first()
     if existing_identifier:
-        suggestion = generate_party_identifier_suggestion(user_in.party_identifier)
+        suggestion = generate_party_identifier_suggestion(user_in.game_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -239,10 +238,6 @@ async def register_user(
                 "suggested_party_identifier": suggestion,
             },
         )
-
-    existing_game_id = session.exec(select(User).where(User.game_id == user_in.game_id)).first()
-    if existing_game_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game ID already registered")
 
     role = UserRole.USER
 
