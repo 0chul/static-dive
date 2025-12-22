@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import ConfigDict
+from fastapi import HTTPException, status
+from pydantic import ConfigDict, model_validator
 from sqlalchemy import Column, JSON, Text
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -69,7 +70,21 @@ class UserCreate(UserBase):
 class UserRegister(SQLModel):
     username: str = Field(index=True)
     password: str
+    confirm_password: Optional[str] = None
     party_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
+
+    @model_validator(mode="after")
+    def validate_passwords_match(self):
+        if self.confirm_password is None:
+            self.confirm_password = self.password
+            return self
+
+        if self.password != self.confirm_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="비밀번호와 확인 비밀번호가 일치하지 않습니다.",
+            )
+        return self
 
 
 class UserRead(UserBase):
