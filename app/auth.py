@@ -1,10 +1,16 @@
-from fastapi import Depends, Header, HTTPException, Request, status
-from fastapi import Depends, Header, HTTPException, status
-from pydantic import BaseModel
+from datetime import datetime, timedelta
+import os
+from typing import Optional
 
-from app.database import get_session
-from app.models import Party, User, UserRole
-from sqlmodel import Session
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from pydantic import BaseModel
+from sqlmodel import Field, Session, SQLModel, select
+
+from app.database import engine, get_session
+from app.models import Party, User, UserCreate, UserRead, UserRegister, UserRole
 
 
 class AuthenticatedUser(BaseModel):
@@ -71,38 +77,6 @@ def require_registered_user(
 
 def require_admin(user: AuthenticatedUser = Depends(require_role("admin"))) -> AuthenticatedUser:
     return user
-
-
-def require_host_or_admin(
-    party_id: int,
-    session: Session = Depends(get_session),
-    user: AuthenticatedUser = Depends(get_authenticated_user),
-) -> Party:
-    party = session.get(Party, party_id)
-    if party is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="파티를 찾을 수 없습니다.")
-
-    if user.is_admin:
-        return party
-
-    if party.host_identifier != user.game_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 수행할 수 있는 작업입니다."
-        )
-
-    return party
-from datetime import datetime, timedelta
-import os
-from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from sqlmodel import Field, Session, SQLModel, select
-
-from app.database import engine, get_session
-from app.models import User, UserCreate, UserRead, UserRegister, UserRole
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me")
 ALGORITHM = "HS256"
