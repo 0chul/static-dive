@@ -54,7 +54,11 @@ class UserRole(str):
 class UserBase(SQLModel):
     username: str = Field(index=True, sa_column_kwargs={"unique": True})
     role: str = Field(default=UserRole.USER, regex="^(admin|user|guest)$")
-    party_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
+    party_identifier: str = Field(
+        regex=PARTY_IDENTIFIER_REGEX,
+        index=True,
+        sa_column_kwargs={"unique": True},
+    )
 
 
 class User(UserBase, table=True):
