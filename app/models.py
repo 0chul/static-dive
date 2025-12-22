@@ -103,13 +103,13 @@ class PartyBase(SQLModel):
     schedule: Optional[str] = None
     capacity: Optional[int] = Field(default=None, ge=1)
     open_slot_count: Optional[int] = Field(default=None, ge=0)
-    host_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
     voice_channel_link: Optional[str] = None
     status: str = Field(default=PartyStatus.OPEN)
 
 
 class Party(PartyBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    host_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
     host_id: str
     host_name: str
     invite_code: Optional[str] = Field(default=None, index=True)
@@ -121,11 +121,13 @@ class Party(PartyBase, table=True):
 
 class PartyCreate(PartyBase):
     visibility: str = Field(default=PartyVisibility.PUBLIC, regex="^(public|private)$")
+    host_identifier: Optional[str] = Field(default=None, regex=PARTY_IDENTIFIER_REGEX)
     invite_code: Optional[str] = None
 
 
 class PartyRead(PartyBase):
     id: int
+    host_identifier: str
     host_id: str
     host_name: str
     invite_code: Optional[str]

@@ -461,18 +461,20 @@ def create_party(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> PartyDetail:
-    if not user.user_id:
+    if not current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="로그인이 필요한 작업입니다."
         )
 
-    if not user.party_identifier:
+    if not current_user.party_identifier:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="회원 프로필에 파티 식별자가 없습니다. 다시 로그인하거나 정보를 확인해주세요.",
         )
 
-    if user.role != "admin" and payload.host_identifier != user.party_identifier:
+    host_identifier = payload.host_identifier or current_user.party_identifier
+
+    if current_user.role != "admin" and host_identifier != current_user.party_identifier:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="본인의 계정으로만 파티를 생성할 수 있습니다."
         )
@@ -484,7 +486,9 @@ def create_party(
     party = Party(
         **payload.dict(exclude={"invite_code", "host_identifier"}),
         invite_code=invite_code,
-        host_identifier=user.party_identifier,
+        host_identifier=host_identifier,
+        host_id=str(current_user.id),
+        host_name=current_user.username,
     )
     session.add(party)
     session.commit()
