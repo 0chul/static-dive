@@ -5,7 +5,7 @@ from pydantic import ConfigDict
 from sqlalchemy import Column, JSON, Text
 from sqlmodel import Field, Relationship, SQLModel
 
-PARTY_IDENTIFIER_REGEX = r"^[^#]+#[^#]+$"
+GAME_ID_REGEX = r"^[A-Za-z0-9_-]{3,16}$"
 
 
 class GearPresetVisibility(str):
@@ -54,7 +54,9 @@ class UserRole(str):
 class UserBase(SQLModel):
     username: str = Field(index=True, sa_column_kwargs={"unique": True})
     role: str = Field(default=UserRole.USER, regex="^(admin|user|guest)$")
-    party_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
+    game_id: str = Field(
+        index=True, sa_column_kwargs={"unique": True}, regex=GAME_ID_REGEX
+    )
 
 
 class User(UserBase, table=True):
@@ -69,7 +71,7 @@ class UserCreate(UserBase):
 class UserRegister(SQLModel):
     username: str = Field(index=True)
     password: str
-    party_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
+    game_id: str = Field(regex=GAME_ID_REGEX)
 
 
 class UserRead(UserBase):
@@ -109,7 +111,7 @@ class PartyBase(SQLModel):
 
 class Party(PartyBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    host_identifier: str = Field(regex=PARTY_IDENTIFIER_REGEX)
+    host_identifier: str = Field(regex=GAME_ID_REGEX)
     host_id: str
     host_name: str
     invite_code: Optional[str] = Field(default=None, index=True)
@@ -121,7 +123,7 @@ class Party(PartyBase, table=True):
 
 class PartyCreate(PartyBase):
     visibility: str = Field(default=PartyVisibility.PUBLIC, regex="^(public|private)$")
-    host_identifier: Optional[str] = Field(default=None, regex=PARTY_IDENTIFIER_REGEX)
+    host_identifier: Optional[str] = Field(default=None, regex=GAME_ID_REGEX)
     invite_code: Optional[str] = None
 
 

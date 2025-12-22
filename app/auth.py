@@ -11,7 +11,7 @@ class AuthenticatedUser(BaseModel):
     user_id: str | None
     username: str | None
     role: str
-    party_identifier: str | None = None
+    game_id: str | None = None
 
     @property
     def is_admin(self) -> bool:
@@ -23,7 +23,7 @@ def get_authenticated_user(
     x_user_id: str | None = Header(default=None, convert_underscores=False),
     x_user_name: str | None = Header(default=None, convert_underscores=False),
     x_user_role: str | None = Header(default=None, convert_underscores=False),
-    x_party_identifier: str | None = Header(default=None, convert_underscores=False),
+    x_game_id: str | None = Header(default=None, convert_underscores=False),
 ) -> AuthenticatedUser:
     """Simple authentication stub reading user info from headers.
 
@@ -37,7 +37,7 @@ def get_authenticated_user(
             user_id=str(resolved_user.id),
             username=resolved_user.username,
             role=resolved_user.role,
-            party_identifier=resolved_user.party_identifier,
+            game_id=resolved_user.game_id,
         )
 
     normalized_role = (x_user_role or "guest").lower()
@@ -48,7 +48,7 @@ def get_authenticated_user(
         user_id=x_user_id,
         username=x_user_name,
         role=normalized_role,
-        party_identifier=x_party_identifier,
+        game_id=x_game_id,
     )
 
 
@@ -85,7 +85,7 @@ def require_host_or_admin(
     if user.is_admin:
         return party
 
-    if party.host_identifier != user.party_identifier:
+    if party.host_identifier != user.game_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="파티장만 수행할 수 있는 작업입니다."
         )
@@ -240,7 +240,7 @@ async def register_user(
         username=user_in.username,
         role=role,
         hashed_password=get_password_hash(user_in.password),
-        party_identifier=user_in.party_identifier,
+        game_id=user_in.game_id,
     )
     session.add(user)
     session.commit()
@@ -268,7 +268,7 @@ def create_user_with_role(
         username=user_in.username,
         role=user_in.role,
         hashed_password=get_password_hash(user_in.password),
-        party_identifier=user_in.party_identifier,
+        game_id=user_in.game_id,
     )
     session.add(user)
     session.commit()
@@ -314,7 +314,7 @@ def login_for_access_token(
         data={
             "sub": user.username,
             "role": user.role,
-            "party_identifier": user.party_identifier,
+            "game_id": user.game_id,
         },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
