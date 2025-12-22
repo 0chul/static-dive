@@ -579,7 +579,42 @@
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        registerResult.textContent = `회원가입 실패: ${err.detail || res.status}`;
+        const detail = err.detail;
+        const partyIdentifierInput = document.getElementById("register-party-identifier");
+        const usernameInput = document.getElementById("register-username");
+
+        if (detail && typeof detail === "object") {
+          if (detail.field === "party_identifier") {
+            const suggested = detail.suggested_party_identifier;
+            const message = detail.message || "이미 사용 중인 게임 ID입니다.";
+            if (partyIdentifierInput && suggested) {
+              partyIdentifierInput.value = suggested;
+              partyIdentifierInput.focus();
+              partyIdentifierInput.select?.();
+            }
+            registerResult.textContent = suggested
+              ? `${message} 제안된 ID를 입력란에 채웠어요.`
+              : message;
+            return;
+          }
+
+          if (detail.field === "username") {
+            registerResult.textContent = detail.message || "이미 사용 중인 사용자명입니다. 다른 아이디를 입력해주세요.";
+            if (usernameInput) {
+              usernameInput.focus();
+              usernameInput.select?.();
+            }
+            return;
+          }
+
+          if (detail.message) {
+            registerResult.textContent = `회원가입 실패: ${detail.message}`;
+            return;
+          }
+        }
+
+        const fallbackMessage = typeof detail === "string" ? detail : err.detail;
+        registerResult.textContent = `회원가입 실패: ${fallbackMessage || res.status}`;
         return;
       }
 
