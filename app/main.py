@@ -13,6 +13,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -63,6 +64,18 @@ STATIC_DIR = BASE_DIR / "static"
 app = FastAPI(title="Albion Party Planner", version="0.1.0")
 
 ADMIN_IDS = {admin.strip() for admin in os.getenv("ADMIN_IDS", "admin").split(",") if admin.strip()}
+
+allowed_origins = [origin.strip() for origin in os.getenv("CORS_ALLOW_ORIGINS", "*").split(",") if origin.strip()]
+if not allowed_origins:
+    allowed_origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _require_admin(admin_id: str) -> None:
