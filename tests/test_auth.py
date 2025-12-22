@@ -60,6 +60,25 @@ def test_guest_registration_sets_user_role(client: TestClient) -> None:
     assert response.json()["role"] == UserRole.USER
 
 
+def test_registration_rejects_mismatched_passwords(client: TestClient) -> None:
+    app.dependency_overrides[resolve_user_from_request] = lambda: None
+
+    response = client.post(
+        "/auth/register",
+        json={
+            "username": "pw-mismatch",
+            "password": "secret",
+            "confirm_password": "not-secret",
+            "party_identifier": "Mismatch#1000",
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"] == "비밀번호와 확인 비밀번호가 일치하지 않습니다."
+    )
+
+
 def test_registration_rejects_duplicate_username(client: TestClient) -> None:
     app.dependency_overrides[resolve_user_from_request] = lambda: None
 
