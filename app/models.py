@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 from typing import Optional
 
@@ -73,15 +74,31 @@ class UserRegister(SQLModel):
     model_config = ConfigDict(populate_by_name=True)
     username: str = Field(index=True)
     password: str
-    game_id: str = Field(regex=GAME_ID_REGEX, alias="party_identifier")
+    confirm_password: str | None = None
+    game_id: str = Field(regex=GAME_ID_REGEX)
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_party_identifier(cls, data: dict):
+        if isinstance(data, dict) and "game_id" not in data and "party_identifier" in data:
+            data = dict(data)
+            data["game_id"] = data.get("party_identifier")
+        return data
 
     @model_validator(mode="after")
     def validate_passwords_match(self):
         if self.confirm_password is None:
-            self.confirm_password = self.password
             return self
 
-        if self.password != self.confirm_password:
+        try:
+            passwords_match = secrets.compare_digest(self.password, self.confirm_password)
+        except TypeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="비밀번호와 확인 비밀번호가 일치하지 않습니다.",
+            ) from exc
+
+        if not passwords_match:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="비밀번호와 확인 비밀번호가 일치하지 않습니다.",

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import random
 import os
 from typing import Optional
 
@@ -210,12 +211,6 @@ async def register_user(
             detail="Role cannot be set during registration",
         )
 
-    if user_in.password != user_in.confirm_password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="비밀번호와 확인 비밀번호가 일치하지 않습니다.",
-        )
-
     existing_user = session.exec(select(User).where(User.username == user_in.username)).first()
     if existing_user:
         raise HTTPException(
@@ -226,11 +221,9 @@ async def register_user(
             },
         )
 
-    existing_identifier = session.exec(
-        select(User).where(User.party_identifier == user_in.party_identifier)
-    ).first()
+    existing_identifier = session.exec(select(User).where(User.game_id == user_in.game_id)).first()
     if existing_identifier:
-        suggestion = generate_party_identifier_suggestion(user_in.party_identifier)
+        suggestion = generate_party_identifier_suggestion(user_in.game_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
