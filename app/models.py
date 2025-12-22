@@ -69,9 +69,10 @@ class UserCreate(UserBase):
 
 
 class UserRegister(SQLModel):
+    model_config = ConfigDict(populate_by_name=True)
     username: str = Field(index=True)
     password: str
-    game_id: str = Field(regex=GAME_ID_REGEX)
+    game_id: str = Field(regex=GAME_ID_REGEX, alias="party_identifier")
 
 
 class UserRead(UserBase):

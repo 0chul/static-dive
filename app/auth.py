@@ -208,6 +208,10 @@ async def register_user(
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
 
+    existing_game_id = session.exec(select(User).where(User.game_id == user_in.game_id)).first()
+    if existing_game_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Game ID already registered")
+
     role = UserRole.USER
 
     user = User(
