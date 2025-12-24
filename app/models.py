@@ -78,9 +78,11 @@ class UserRegister(SQLModel):
 
     @model_validator(mode="before")
     @classmethod
-    def populate_game_id(cls, values: dict) -> dict:
-        if "game_id" not in values and "party_identifier" in values:
-            values = {**values, "game_id": values.get("party_identifier")}
+    def map_party_identifier(cls, values: dict) -> dict:
+        if isinstance(values, dict) and values.get("game_id") is None:
+            party_identifier = values.get("party_identifier")
+            if party_identifier is not None:
+                return {**values, "game_id": party_identifier}
         return values
 
     @model_validator(mode="after")
