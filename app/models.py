@@ -7,7 +7,7 @@ from pydantic import ConfigDict, model_validator
 from sqlalchemy import Column, JSON, Text
 from sqlmodel import Field, Relationship, SQLModel
 
-GAME_ID_REGEX = r"^[A-Za-z0-9_-]{3,16}$"
+GAME_ID_REGEX = r"^[A-Za-z0-9_-]{3,16}(#[0-9]{4})?$"
 
 
 class GearPresetVisibility(str):
@@ -74,16 +74,17 @@ class UserRegister(SQLModel):
     model_config = ConfigDict(populate_by_name=True)
     username: str = Field(index=True)
     password: str
+    game_id: str = Field(regex=GAME_ID_REGEX, alias="party_identifier")
     confirm_password: str | None = None
-    game_id: str = Field(regex=GAME_ID_REGEX)
 
     @model_validator(mode="before")
     @classmethod
-    def map_party_identifier(cls, data: dict):
-        if isinstance(data, dict) and "game_id" not in data and "party_identifier" in data:
-            data = dict(data)
-            data["game_id"] = data.get("party_identifier")
-        return data
+    def map_party_identifier(cls, values: dict) -> dict:
+        if isinstance(values, dict) and values.get("game_id") is None:
+            party_identifier = values.get("party_identifier")
+            if party_identifier is not None:
+                return {**values, "game_id": party_identifier}
+        return values
 
     @model_validator(mode="after")
     def validate_passwords_match(self):
