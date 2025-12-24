@@ -568,6 +568,7 @@
         username: formData.get("username"),
         game_id: formData.get("game_id"),
         password: formData.get("password"),
+        confirm_password: confirmPassword,
       };
 
       const res = await fetch(`${API_BASE}/auth/register`, {
