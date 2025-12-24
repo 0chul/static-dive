@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import SQLModel, Session
+from sqlmodel import SQLModel, Session, select
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT_DIR))
@@ -26,19 +26,19 @@ from app.models import User, UserRole  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def reset_database() -> None:
-    SQLModel.metadata.drop_all(database.engine)
-    SQLModel.metadata.create_all(database.engine)
-    yield
-
-
-@pytest.fixture(autouse=True)
 def stub_password_hashing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(auth_module, "get_password_hash", lambda password: f"hashed-{password}")
 
 
+@pytest.fixture(autouse=True)
+def reset_database(stub_password_hashing: None) -> None:
+    SQLModel.metadata.drop_all(database.engine)
+    database.create_db_and_tables()
+    yield
+
+
 @pytest.fixture()
-def client():
+def client(stub_password_hashing: None):
     def override_get_session():
         with Session(database.engine) as session:
             yield session
@@ -176,6 +176,31 @@ def test_admin_creation_available_only_via_admin_endpoint(client: TestClient) ->
 
     assert response.status_code == 201
     assert response.json()["role"] == UserRole.ADMIN
+
+
+def test_default_admin_is_seeded_with_fixed_credentials(client: TestClient) -> None:
+    with Session(database.engine) as session:
+        admin_user = session.exec(select(User).where(User.username == "admin")).first()
+
+    assert admin_user is not None
+    assert admin_user.role == UserRole.ADMIN
+    assert admin_user.game_id == "admin#0000"
+    assert admin_user.hashed_password == "hashed-asdf1234"
+
+
+def test_default_admin_role_cannot_be_changed(client: TestClient) -> None:
+    admin_user = User(
+        username="admin",
+        role=UserRole.ADMIN,
+        hashed_password="irrelevant",
+        game_id="AdminHost",
+    )
+    app.dependency_overrides[require_authenticated_admin] = lambda: admin_user
+
+    response = client.patch("/auth/admin/users/admin/role", json={"role": UserRole.USER})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "기본 관리자 계정은 수정할 수 없습니다."
 
 
 def test_private_party_join_does_not_require_gear_preset(client: TestClient) -> None:

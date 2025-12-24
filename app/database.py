@@ -15,6 +15,9 @@ def create_db_and_tables() -> None:
     SQLModel.metadata.create_all(engine)
     _ensure_slot_gearpreset_column()
     _migrate_slot_presets()
+    from app.auth import ensure_default_admin
+
+    ensure_default_admin()
 
 
 def get_session() -> Generator[Session, None, None]:
