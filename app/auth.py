@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import random
 import os
 import random
 from typing import Optional
@@ -209,12 +210,6 @@ async def register_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Role cannot be set during registration",
-        )
-
-    if user_in.password != user_in.confirm_password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="비밀번호와 확인 비밀번호가 일치하지 않습니다.",
         )
 
     existing_user = session.exec(select(User).where(User.username == user_in.username)).first()

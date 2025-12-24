@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 from typing import Optional
 
@@ -88,10 +89,17 @@ class UserRegister(SQLModel):
     @model_validator(mode="after")
     def validate_passwords_match(self):
         if self.confirm_password is None:
-            self.confirm_password = self.password
             return self
 
-        if self.password != self.confirm_password:
+        try:
+            passwords_match = secrets.compare_digest(self.password, self.confirm_password)
+        except TypeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="비밀번호와 확인 비밀번호가 일치하지 않습니다.",
+            ) from exc
+
+        if not passwords_match:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="비밀번호와 확인 비밀번호가 일치하지 않습니다.",
