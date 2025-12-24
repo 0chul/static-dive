@@ -15,6 +15,11 @@ from app.database import engine, get_session
 from app.models import Party, User, UserCreate, UserRead, UserRegister, UserRole
 
 
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "asdf1234"
+ADMIN_GAME_ID = "admin#0000"
+
+
 class AuthenticatedUser(BaseModel):
     user_id: str | None
     username: str | None
@@ -234,6 +239,12 @@ async def register_user(
             },
         )
 
+    if user_in.username == ADMIN_USERNAME:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="기본 관리자 계정은 등록할 수 없습니다.",
+        )
+
     role = UserRole.USER
 
     user = User(
@@ -260,6 +271,11 @@ def create_user_with_role(
     session: Session = Depends(get_session),
     current_user: User = Depends(require_authenticated_admin),
 ) -> User:
+    if user_in.username == ADMIN_USERNAME:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="기본 관리자 계정은 생성할 수 없습니다.",
+        )
     existing_user = session.exec(select(User).where(User.username == user_in.username)).first()
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
@@ -287,6 +303,11 @@ def update_user_role(
     session: Session = Depends(get_session),
     current_user: User = Depends(require_authenticated_admin),
 ) -> User:
+    if username == ADMIN_USERNAME:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="기본 관리자 계정은 수정할 수 없습니다.",
+        )
     user = session.exec(select(User).where(User.username == username)).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -319,5 +340,56 @@ def login_for_access_token(
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return Token(access_token=access_token, token_type="bearer")
+
+
+def ensure_default_admin(session: Session | None = None) -> None:
+    owns_session = session is None
+    if session is None:
+        session = Session(engine)
+
+    admin_user = session.exec(select(User).where(User.username == ADMIN_USERNAME)).first()
+    if admin_user is None:
+        hashed_password = get_password_hash(ADMIN_PASSWORD)
+        admin_user = User(
+            username=ADMIN_USERNAME,
+            role=UserRole.ADMIN,
+            hashed_password=hashed_password,
+            game_id=ADMIN_GAME_ID,
+        )
+        session.add(admin_user)
+        session.commit()
+        if owns_session:
+            session.close()
+        return
+
+    updated = False
+    if admin_user.role != UserRole.ADMIN:
+        admin_user.role = UserRole.ADMIN
+        updated = True
+
+    password_mismatch = False
+    try:
+        password_mismatch = not verify_password(ADMIN_PASSWORD, admin_user.hashed_password)
+    except Exception:
+        hashed_password = get_password_hash(ADMIN_PASSWORD)
+        password_mismatch = admin_user.hashed_password != hashed_password
+    else:
+        hashed_password = None
+
+    if password_mismatch:
+        hashed_password = hashed_password or get_password_hash(ADMIN_PASSWORD)
+        admin_user.hashed_password = hashed_password
+        updated = True
+
+    if admin_user.game_id != ADMIN_GAME_ID:
+        admin_user.game_id = ADMIN_GAME_ID
+        updated = True
+
+    if updated:
+        session.add(admin_user)
+        session.commit()
+
+    if owns_session:
+        session.close()
 
 
